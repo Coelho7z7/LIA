@@ -1,0 +1,715 @@
+"""
+Ferramentas que a IA pode usar.
+
+O modelo nunca executa comandos livres. Ele só pode escrever uma chamada no formato
+`nome: argumento` para uma das ferramentas registradas aqui, e o código decide o que
+fazer. Abrir app só abre o que está no menu Iniciar (ou numa lista conhecida); não
+existe ferramenta de "rodar comando no terminal", de propósito.
+
+Toda ferramenta devolve um texto começando com "ok: ..." ou "erro: ...". É esse texto
+que volta para o modelo (<|result|>) e ele responde a partir dele.
+
+    python tools.py                 # lista os apps encontrados no seu PC
+    python tools.py abrir_app spotify --dry-run
+"""
+
+import ast
+import datetime
+import difflib
+import json
+import math
+import operator
+import os
+import platform
+import re
+import shutil
+import subprocess
+import sys
+import threading
+import time
+import unicodedata
+import urllib.parse
+import urllib.request
+import uuid
+import webbrowser
+from dataclasses import dataclass
+from pathlib import Path
+
+WINDOWS = platform.system() == "Windows"
+MEMORY_DIR = Path(__file__).resolve().parent / "memoria"
+DRY_RUN = False  # True = não abre nada de verdade (testes)
+
+# Quem quiser ser avisado quando um lembrete disparar (o chat do terminal, por exemplo).
+REMINDER_LISTENERS = []
+
+
+@dataclass
+class Tool:
+    name: str
+    func: object
+    confirm: bool  # pede confirmação antes de executar?
+    desc: str
+
+
+TOOLS = {}
+
+
+def tool(name, desc, confirm=False):
+    def deco(f):
+        TOOLS[name] = Tool(name, f, confirm, desc)
+        return f
+    return deco
+
+
+def run(name, arg=""):
+    t = TOOLS.get(name)
+    if t is None:
+        return f"erro: ferramenta {name} não existe"
+    try:
+        return t.func((arg or "").strip())
+    except Exception as e:  # a IA nunca deve derrubar o programa
+        return f"erro: {e}"
+
+
+def parse_call(text):
+    """'abrir_app: spotify' -> ('abrir_app', 'spotify'). None se não for uma chamada válida."""
+    name, _, arg = text.partition(":")
+    name = name.strip()
+    if name not in TOOLS:
+        return None
+    return name, arg.strip()
+
+
+# ----------------------------------------------------------------- utilidades
+def strip_accents(s):
+    s = unicodedata.normalize("NFKD", s.lower())
+    return "".join(c for c in s if not unicodedata.combining(c))
+
+
+def norm(s):
+    """Minúsculas, sem acento, sem pontuação estranha, espaços simples."""
+    s = re.sub(r"[^\w\s.+#-]", " ", strip_accents(s))
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def _mem_path(name):
+    MEMORY_DIR.mkdir(exist_ok=True)
+    return MEMORY_DIR / name
+
+
+def _load_json(name, default):
+    try:
+        return json.loads(_mem_path(name).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return default
+
+
+def _save_json(name, data):
+    _mem_path(name).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _open(target):
+    """Abre um arquivo, pasta, URL ou URI (ms-settings:) com o programa padrão."""
+    if DRY_RUN:
+        return
+    if WINDOWS:
+        os.startfile(target)
+    elif platform.system() == "Darwin":
+        subprocess.Popen(["open", target])
+    else:
+        subprocess.Popen(["xdg-open", target])
+
+
+def _open_url(url):
+    if not DRY_RUN:
+        webbrowser.open(url)
+
+
+# ======================================================================= APPS
+# Nomes do dia a dia -> nomes como aparecem no menu Iniciar (em pt e em en).
+APP_ALIASES = {
+    "bloco de notas": ["Bloco de Notas", "Notepad"], "notepad": ["Bloco de Notas", "Notepad"],
+    "calculadora": ["Calculadora", "Calculator"], "calc": ["Calculadora", "Calculator"],
+    "explorador de arquivos": ["Explorador de Arquivos", "File Explorer"],
+    "explorer": ["Explorador de Arquivos", "File Explorer"], "meus arquivos": ["Explorador de Arquivos", "File Explorer"],
+    "configuracoes": ["Configurações", "Settings"], "config": ["Configurações", "Settings"],
+    "ajustes": ["Configurações", "Settings"], "settings": ["Configurações", "Settings"],
+    "navegador": ["Google Chrome", "Microsoft Edge", "Firefox", "Brave", "Opera GX Browser", "Opera Browser"],
+    "chrome": ["Google Chrome"], "google chrome": ["Google Chrome"], "edge": ["Microsoft Edge"],
+    "firefox": ["Firefox", "Mozilla Firefox"], "brave": ["Brave"], "opera": ["Opera Browser", "Opera GX Browser"],
+    "opera gx": ["Opera GX Browser"],
+    "vscode": ["Visual Studio Code"], "vs code": ["Visual Studio Code"], "code": ["Visual Studio Code"],
+    "visual studio code": ["Visual Studio Code"],
+    "word": ["Word"], "excel": ["Excel"], "powerpoint": ["PowerPoint"], "outlook": ["Outlook", "Outlook (new)"],
+    "onenote": ["OneNote"], "teams": ["Microsoft Teams", "Teams"],
+    "terminal": ["Terminal", "Windows Terminal", "Prompt de Comando", "Command Prompt"],
+    "cmd": ["Prompt de Comando", "Command Prompt"], "prompt de comando": ["Prompt de Comando", "Command Prompt"],
+    "powershell": ["Windows PowerShell", "PowerShell"],
+    "paint": ["Paint"], "gerenciador de tarefas": ["Gerenciador de Tarefas", "Task Manager"],
+    "zap": ["WhatsApp"], "whats": ["WhatsApp"], "whatsapp": ["WhatsApp"],
+    "telegram": ["Telegram Desktop", "Telegram"], "obs": ["OBS Studio"], "camera": ["Câmera", "Camera"],
+    "fotos": ["Fotos", "Photos"], "relogio": ["Relógio", "Clock", "Alarmes e Relógio"],
+    "alarme": ["Relógio", "Clock", "Alarmes e Relógio"], "loja": ["Microsoft Store"],
+    "microsoft store": ["Microsoft Store"], "ferramenta de captura": ["Ferramenta de Captura", "Snipping Tool"],
+    "painel de controle": ["Painel de Controle", "Control Panel"], "xbox": ["Xbox"],
+    "lol": ["League of Legends"], "cs": ["Counter-Strike 2"], "cs2": ["Counter-Strike 2"],
+    "epic": ["Epic Games Launcher"], "epic games": ["Epic Games Launcher"],
+    "battle.net": ["Battle.net"], "davinci": ["DaVinci Resolve"],
+}
+# Se o app não aparecer no menu Iniciar, esses comandos do Windows sempre existem.
+APP_FALLBACK = {
+    "bloco de notas": "notepad.exe", "notepad": "notepad.exe", "calculadora": "calc.exe", "calc": "calc.exe",
+    "paint": "mspaint.exe", "explorador de arquivos": "explorer.exe", "explorer": "explorer.exe",
+    "gerenciador de tarefas": "taskmgr.exe", "cmd": "cmd.exe", "prompt de comando": "cmd.exe",
+    "terminal": "wt.exe", "powershell": "powershell.exe", "configuracoes": "ms-settings:",
+    "config": "ms-settings:", "ajustes": "ms-settings:", "painel de controle": "control.exe",
+}
+_JUNK = ("uninstall", "desinstalar", "readme", "leia-me", "leiame", "manual", "help", "ajuda",
+         "website", "documentation", "release notes", "license", "licenca", "changelog")
+_FILLER = re.compile(r"^(o|a|os|as|um|uma|meu|minha|app|aplicativo|programa|jogo|do|da|de|no|na)\s+")
+
+
+class AppIndex:
+    """Lista de apps instalados (via Get-StartApps), com busca aproximada."""
+
+    def __init__(self):
+        self.apps = None
+
+    def load(self, refresh=False):
+        cache = _mem_path("apps.json")
+        if not refresh and cache.exists() and time.time() - cache.stat().st_mtime < 86400:
+            self.apps = _load_json("apps.json", [])
+            if self.apps:
+                return self.apps
+        self.apps = []
+        if WINDOWS:
+            cmd = ("[Console]::OutputEncoding=[Text.Encoding]::UTF8; "
+                   "Get-StartApps | Select-Object Name,AppID | ConvertTo-Json -Compress")
+            try:
+                out = subprocess.run(["powershell", "-NoProfile", "-Command", cmd], capture_output=True,
+                                     timeout=60, encoding="utf-8", errors="replace").stdout
+                data = json.loads(out) if out.strip() else []
+                if isinstance(data, dict):
+                    data = [data]
+                self.apps = [{"name": d["Name"], "id": d["AppID"]} for d in data if d.get("Name")]
+            except (OSError, ValueError, subprocess.SubprocessError):
+                self.apps = []
+        _save_json("apps.json", self.apps)
+        return self.apps
+
+    @staticmethod
+    def _score(q, name):
+        n = norm(name)
+        if q == n:
+            return 1.0
+        s = difflib.SequenceMatcher(None, q, n).ratio()
+        if q in n.split() or n.startswith(q + " "):
+            s = max(s, 0.9)
+        elif len(q) >= 4 and q in n:
+            s = max(s, 0.8)
+        elif len(n) >= 4 and n in q:
+            s = max(s, 0.78)
+        if any(j in n for j in _JUNK):
+            s *= 0.5
+        return s
+
+    def find(self, query):
+        if self.apps is None:
+            self.load()
+        q = norm(query)
+        while _FILLER.match(q):
+            q = _FILLER.sub("", q, count=1)
+        by_name = {norm(a["name"]): a for a in self.apps}
+        for alias in APP_ALIASES.get(q, []):
+            if norm(alias) in by_name:
+                return by_name[norm(alias)]
+        best, best_score = None, 0.0
+        for a in self.apps:
+            s = self._score(q, a["name"])
+            if s > best_score or (s == best_score and best and len(a["name"]) < len(best["name"])):
+                best, best_score = a, s
+        return best if best_score >= 0.75 else None
+
+
+APPS = AppIndex()
+
+
+def _launch_app(entry):
+    if DRY_RUN:
+        return
+    subprocess.Popen(["explorer.exe", "shell:AppsFolder\\" + entry["id"]])
+
+
+def _app_paths(q):
+    """Procura executáveis registrados no Windows (App Paths) ou no PATH."""
+    if not re.fullmatch(r"[a-z0-9_.+-]+", q):
+        return None
+    if WINDOWS:
+        import winreg
+        for root in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+            try:
+                key = rf"Software\Microsoft\Windows\CurrentVersion\App Paths\{q}.exe"
+                with winreg.OpenKey(root, key) as k:
+                    path = winreg.QueryValue(k, None)
+                    if path:
+                        return path.strip('"')
+            except OSError:
+                pass
+    return shutil.which(q)
+
+
+@tool("abrir_app", "abre um programa instalado", confirm=True)
+def abrir_app(arg):
+    if not arg:
+        return "erro: qual app?"
+    q = norm(arg)
+    while _FILLER.match(q):
+        q = _FILLER.sub("", q, count=1)
+    entry = APPS.find(q)
+    if entry:
+        _launch_app(entry)
+        return f"ok: abri {entry['name']}"
+    if q in APP_FALLBACK:
+        _open(APP_FALLBACK[q])
+        return f"ok: abri {arg}"
+    path = _app_paths(q)
+    if path:
+        _open(path)
+        return f"ok: abri {Path(path).stem}"
+    if _site_url(q):  # "abre o youtube" pedido como app: abre o site
+        return abrir_site(arg)
+    return f"erro: não achei o app {arg}"
+
+
+# ====================================================================== SITES
+SITES = {
+    "youtube": "https://www.youtube.com", "google": "https://www.google.com", "gmail": "https://mail.google.com",
+    "github": "https://github.com", "netflix": "https://www.netflix.com", "wikipedia": "https://pt.wikipedia.org",
+    "whatsapp web": "https://web.whatsapp.com", "whatsapp": "https://web.whatsapp.com",
+    "instagram": "https://www.instagram.com", "twitter": "https://x.com", "reddit": "https://www.reddit.com",
+    "linkedin": "https://www.linkedin.com", "twitch": "https://www.twitch.tv", "amazon": "https://www.amazon.com.br",
+    "mercado livre": "https://www.mercadolivre.com.br", "g1": "https://g1.globo.com", "globo": "https://www.globo.com",
+    "google drive": "https://drive.google.com", "drive": "https://drive.google.com",
+    "google maps": "https://maps.google.com", "maps": "https://maps.google.com",
+    "tradutor": "https://translate.google.com", "google tradutor": "https://translate.google.com",
+    "canva": "https://www.canva.com", "facebook": "https://www.facebook.com", "tiktok": "https://www.tiktok.com",
+    "pinterest": "https://www.pinterest.com", "prime video": "https://www.primevideo.com",
+    "disney plus": "https://www.disneyplus.com", "disney+": "https://www.disneyplus.com", "max": "https://www.max.com",
+    "stack overflow": "https://stackoverflow.com", "duolingo": "https://www.duolingo.com",
+    "claude": "https://claude.ai", "google agenda": "https://calendar.google.com",
+    "agenda": "https://calendar.google.com", "shopee": "https://shopee.com.br", "ifood": "https://www.ifood.com.br",
+    "spotify web": "https://open.spotify.com", "nubank": "https://nubank.com.br", "uol": "https://www.uol.com.br",
+}
+_DOMAIN = re.compile(r"^(https?://)?([\w-]+\.)+[a-z]{2,}(/\S*)?$")
+
+
+def _site_url(q):
+    q = re.sub(r"^(o |a )?(site |pagina )?(do |da |de )?", "", norm(q))
+    if q in SITES:
+        return SITES[q]
+    if _DOMAIN.match(q):
+        return q if q.startswith("http") else "https://" + q
+    close = difflib.get_close_matches(q, list(SITES), n=1, cutoff=0.78)
+    return SITES[close[0]] if close else None
+
+
+@tool("abrir_site", "abre um site no navegador", confirm=True)
+def abrir_site(arg):
+    url = _site_url(arg)
+    if not url:
+        return f"erro: não conheço o site {arg}"
+    _open_url(url)
+    return f"ok: abri {urllib.parse.urlparse(url).netloc.removeprefix('www.')}"
+
+
+@tool("pesquisar", "pesquisa no Google", confirm=True)
+def pesquisar(arg):
+    if not arg:
+        return "erro: pesquisar o quê?"
+    _open_url("https://www.google.com/search?q=" + urllib.parse.quote_plus(arg))
+    return "ok: pesquisa aberta no navegador"
+
+
+@tool("youtube", "procura vídeos/músicas no YouTube", confirm=True)
+def youtube(arg):
+    if not arg:
+        return abrir_site("youtube")
+    _open_url("https://www.youtube.com/results?search_query=" + urllib.parse.quote_plus(arg))
+    return "ok: busca aberta no youtube"
+
+
+# ============================================================== HORA E DATA
+DIAS = ["segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado", "domingo"]
+MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro",
+         "outubro", "novembro", "dezembro"]
+
+
+def formatar_data(d):
+    return f"{DIAS[d.weekday()]}, {d.day} de {MESES[d.month - 1]} de {d.year}"
+
+
+@tool("hora", "diz a hora atual")
+def hora(arg):
+    return "ok: " + datetime.datetime.now().strftime("%H:%M")
+
+
+@tool("data", "diz a data de hoje")
+def data(arg):
+    return "ok: " + formatar_data(datetime.date.today())
+
+
+# ================================================================ CALCULADORA
+_OPS = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul, ast.Div: operator.truediv,
+        ast.FloorDiv: operator.floordiv, ast.Mod: operator.mod, ast.Pow: operator.pow,
+        ast.USub: operator.neg, ast.UAdd: operator.pos}
+_FUNCS = {"sqrt": math.sqrt, "sin": math.sin, "cos": math.cos, "tan": math.tan, "log": math.log10,
+          "ln": math.log, "abs": abs, "round": round}
+_CONSTS = {"pi": math.pi, "e": math.e}
+
+
+def _eval(node):
+    """Avalia só aritmética. Nada de nomes, atributos, imports: é seguro com texto do modelo."""
+    if isinstance(node, ast.Expression):
+        return _eval(node.body)
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+        return node.value
+    if isinstance(node, ast.Name) and node.id in _CONSTS:
+        return _CONSTS[node.id]
+    if isinstance(node, ast.BinOp) and type(node.op) in _OPS:
+        a, b = _eval(node.left), _eval(node.right)
+        if isinstance(node.op, ast.Pow) and (abs(b) > 100 or abs(a) > 1e6):
+            raise ValueError("número grande demais")
+        return _OPS[type(node.op)](a, b)
+    if isinstance(node, ast.UnaryOp) and type(node.op) in _OPS:
+        return _OPS[type(node.op)](_eval(node.operand))
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in _FUNCS:
+        return _FUNCS[node.func.id](*[_eval(a) for a in node.args])
+    raise ValueError("expressão não suportada")
+
+
+def _to_python(expr):
+    s = strip_accents(expr.replace("×", "*").replace("÷", "/").replace("^", "**").replace("√", " raiz de "))
+    s = re.sub(r"\s+", " ", s.replace("?", " ").replace("=", " ")).strip()
+    s = re.sub(r"^(quanto e|quanto da|calcula|calcule|resolve)\s+", "", s)
+    s = re.sub(r"(\d),(\d)", r"\1.\2", s)  # vírgula decimal
+    s = re.sub(r"(\d+(?:\.\d+)?)\s*(%|por cento)\s*(de|do|da|sobre)\s*", r"\1/100*", s)
+    s = re.sub(r"(\d+(?:\.\d+)?)\s*(%|por cento)", r"(\1/100)", s)
+    for a, b in [("raiz quadrada de", "sqrt "), ("raiz de", "sqrt "), ("raiz", "sqrt "),
+                 ("ao quadrado", "**2"), ("ao cubo", "**3"), ("elevado ao", "**"), ("elevado a", "**"),
+                 ("vezes", "*"), ("multiplicado por", "*"), ("dividido por", "/"), ("divido por", "/"),
+                 ("sobre", "/"), ("mais", "+"), ("menos", "-"), ("seno de", "sin "), ("cosseno de", "cos "),
+                 ("log de", "log ")]:
+        s = s.replace(a, b)
+    s = re.sub(r"(?<=[\d)\s])x(?=[\s\d(])", "*", s)  # 3 x 4
+    s = re.sub(r"\b(sqrt|sin|cos|tan|log)\s+(\d+(?:\.\d+)?)", r"\1(\2)", s)
+    return s.strip()
+
+
+def calcular_valor(expr):
+    value = _eval(ast.parse(_to_python(expr), mode="eval"))
+    if isinstance(value, float):
+        if math.isnan(value) or math.isinf(value):
+            raise ValueError("resultado inválido")
+        if value.is_integer() and abs(value) < 1e15:
+            value = int(value)
+    if isinstance(value, int):
+        return f"{value:,}".replace(",", ".") if abs(value) >= 10000 else str(value)
+    return f"{value:.6g}".replace(".", ",")
+
+
+@tool("calcular", "faz contas")
+def calcular(arg):
+    try:
+        return "ok: " + calcular_valor(arg)
+    except (ValueError, SyntaxError, TypeError, ZeroDivisionError, OverflowError):
+        return "erro: não consegui calcular isso"
+
+
+# ================================================================== LEMBRETES
+_NUM_WORDS = {"um": 1, "uma": 1, "dois": 2, "duas": 2, "tres": 3, "quatro": 4, "cinco": 5, "seis": 6,
+              "sete": 7, "oito": 8, "nove": 9, "dez": 10, "quinze": 15, "vinte": 20, "trinta": 30,
+              "quarenta": 40, "cinquenta": 50, "sessenta": 60}
+
+
+def parse_duracao(s):
+    """'10 minutos', '1h30', 'meia hora', '30 seg', 'duas horas' -> segundos."""
+    s = norm(s)
+    if "meia hora" in s:
+        return 1800
+    s = re.sub(r"\b(" + "|".join(_NUM_WORDS) + r")\b", lambda m: str(_NUM_WORDS[m.group(1)]), s)
+    m = re.search(r"(\d+)\s*h(?:oras?)?\s*e?\s*(\d+)", s)
+    if m:
+        return int(m.group(1)) * 3600 + int(m.group(2)) * 60
+    total, found = 0.0, False
+    for num, unit in re.findall(r"(\d+(?:[.,]\d+)?)\s*(horas?|h|minutos?|mins?|m|segundos?|seg|s)\b", s):
+        n = float(num.replace(",", "."))
+        total += n * (3600 if unit.startswith("h") else 1 if unit.startswith("s") else 60)
+        found = True
+    if not found:
+        m = re.search(r"\d+(?:[.,]\d+)?", s)
+        if not m:
+            raise ValueError("sem número")
+        total = float(m.group().replace(",", ".")) * 60  # número solto = minutos
+    if total <= 0 or total > 7 * 86400:
+        raise ValueError("duração fora do limite")
+    return int(total)
+
+
+def formatar_duracao(sec):
+    h, rest = divmod(sec, 3600)
+    m, s = divmod(rest, 60)
+    parts = []
+    if h:
+        parts.append(f"{h} hora" + ("s" if h > 1 else ""))
+    if m:
+        parts.append(f"{m} minuto" + ("s" if m > 1 else ""))
+    if s and not h:
+        parts.append(f"{s} segundo" + ("s" if s > 1 else ""))
+    return " e ".join(parts)
+
+
+def _fire_reminder(texto):
+    for cb in list(REMINDER_LISTENERS):
+        try:
+            cb(texto)
+        except Exception:
+            pass
+    if WINDOWS and not DRY_RUN:
+        import ctypes
+        import winsound
+        winsound.MessageBeep(winsound.MB_ICONASTERISK)
+        # MB_ICONINFORMATION | MB_SYSTEMMODAL | MB_TOPMOST: aparece por cima de tudo
+        ctypes.windll.user32.MessageBoxW(None, texto, "Lembrete", 0x40 | 0x1000 | 0x40000)
+
+
+@tool("lembrete", "cria um lembrete/timer: 'tempo | texto'")
+def lembrete(arg):
+    tempo, _, texto = arg.partition("|")
+    texto = texto.strip() or "o timer acabou"
+    try:
+        sec = parse_duracao(tempo)
+    except ValueError:
+        return "erro: não entendi o tempo"
+    t = threading.Timer(sec, _fire_reminder, args=(texto,))
+    t.daemon = True  # lembretes vivem enquanto o programa estiver aberto
+    if not DRY_RUN:
+        t.start()
+    return f"ok: em {formatar_duracao(sec)}: {texto}"
+
+
+# ===================================================================== NOTAS
+@tool("anotar", "salva uma nota")
+def anotar(arg):
+    if not arg:
+        return "erro: anotar o quê?"
+    with open(_mem_path("notas.md"), "a", encoding="utf-8") as f:
+        f.write(f"- [{datetime.datetime.now():%Y-%m-%d %H:%M}] {arg}\n")
+    return "ok: anotado"
+
+
+@tool("ver_notas", "lê as últimas notas")
+def ver_notas(arg):
+    try:
+        lines = _mem_path("notas.md").read_text(encoding="utf-8").splitlines()
+    except OSError:
+        lines = []
+    notes = [re.sub(r"^- \[[^\]]*\]\s*", "", l) for l in lines if l.startswith("- ")]
+    if not notes:
+        return "ok: nenhuma nota ainda"
+    return "ok: " + "; ".join(notes[-5:])
+
+
+# ============================================================ MEMÓRIA LONGA
+_STOP = set("o a os as um uma de do da dos das e eu meu minha me que qual quais é eh sou em no na pra para com "
+            "voce vc sobre mim lembra sabe".split())
+
+
+@tool("lembrar", "guarda um fato sobre você")
+def lembrar(arg):
+    if not arg:
+        return "erro: lembrar o quê?"
+    fatos = _load_json("fatos.json", [])
+    # Um fato novo sobre o mesmo assunto ("meu nome é ...") substitui o antigo.
+    chave = " ".join(norm(arg).split()[:3])
+    fatos = [f for f in fatos if " ".join(norm(f).split()[:3]) != chave]
+    fatos.append(arg)
+    _save_json("fatos.json", fatos)
+    m = re.search(r"moro em ([\w\s'-]+)", arg, re.IGNORECASE)
+    if m:
+        cfg = _load_json("config.json", {})
+        cfg["cidade"] = m.group(1).strip()
+        _save_json("config.json", cfg)
+    return "ok: guardei"
+
+
+@tool("recordar", "procura algo que você me contou")
+def recordar(arg):
+    fatos = _load_json("fatos.json", [])
+    if not fatos:
+        return "erro: não tenho nada sobre isso"
+    words = {w for w in norm(arg).split() if w not in _STOP}
+    if not words:
+        return "ok: " + "; ".join(fatos[-5:])
+
+    def score(f):
+        fw = set(norm(f).split())
+        return sum(1 for w in words if w in fw or any(x.startswith(w[:5]) for x in fw if len(w) >= 5))
+    ranked = sorted(fatos, key=score, reverse=True)
+    hits = [f for f in ranked if score(f) > 0][:2]
+    return "ok: " + "; ".join(hits) if hits else "erro: não tenho nada sobre isso"
+
+
+# ============================================================ VOLUME E MÍDIA
+def _press(vk, times=1):
+    if DRY_RUN or not WINDOWS:
+        return
+    import ctypes
+    for _ in range(times):
+        ctypes.windll.user32.keybd_event(vk, 0, 0, 0)
+        ctypes.windll.user32.keybd_event(vk, 0, 2, 0)  # KEYEVENTF_KEYUP
+
+
+@tool("volume", "mais / menos / mudo")
+def volume(arg):
+    a = norm(arg)
+    if a in ("mais", "aumentar", "sobe", "alto", "+"):
+        _press(0xAF, 5)  # VK_VOLUME_UP (cada toque = 2%)
+        return "ok: volume aumentado"
+    if a in ("menos", "diminuir", "abaixa", "baixo", "-"):
+        _press(0xAE, 5)  # VK_VOLUME_DOWN
+        return "ok: volume diminuído"
+    if a in ("mudo", "mute", "silencio", "desmutar"):
+        _press(0xAD)  # VK_VOLUME_MUTE
+        return "ok: mudo alternado"
+    return "erro: use mais, menos ou mudo"
+
+
+@tool("midia", "pausar / proxima / anterior")
+def midia(arg):
+    a = norm(arg)
+    if a in ("pausar", "tocar", "play", "pause", "continuar"):
+        _press(0xB3)  # VK_MEDIA_PLAY_PAUSE
+        return "ok: play/pause"
+    if a in ("proxima", "pular", "next"):
+        _press(0xB0)
+        return "ok: próxima faixa"
+    if a in ("anterior", "voltar", "previous"):
+        _press(0xB1)
+        return "ok: faixa anterior"
+    return "erro: use pausar, proxima ou anterior"
+
+
+# ===================================================================== PASTAS
+_KNOWN_FOLDERS = {
+    "downloads": ("Downloads", "{374DE290-123F-4565-9164-39C4925E467B}"),
+    "documentos": ("Documentos", "{FDD39AD0-238F-46AF-ADB4-6C85480369C7}"),
+    "area de trabalho": ("Área de Trabalho", "{B4BFCC3A-DB2C-424C-B029-7FE99A87C641}"),
+    "imagens": ("Imagens", "{33E28130-4E1E-4676-835A-98395C3BC3BB}"),
+    "musicas": ("Músicas", "{4BD8D571-6D19-48D3-BE97-422220080E43}"),
+    "videos": ("Vídeos", "{18989B1D-99B5-455B-841C-AB7C74E4DDFC}"),
+}
+_FOLDER_ALIASES = {"desktop": "area de trabalho", "documents": "documentos", "fotos": "imagens",
+                   "pictures": "imagens", "music": "musicas", "musica": "musicas", "video": "videos",
+                   "download": "downloads", "baixados": "downloads", "documento": "documentos"}
+
+
+def _known_folder(guid):
+    import ctypes
+    from ctypes import wintypes
+
+    class GUID(ctypes.Structure):
+        _fields_ = [("Data1", wintypes.DWORD), ("Data2", wintypes.WORD), ("Data3", wintypes.WORD),
+                    ("Data4", ctypes.c_ubyte * 8)]
+    u = uuid.UUID(guid)
+    g = GUID(u.fields[0], u.fields[1], u.fields[2], (ctypes.c_ubyte * 8)(*u.bytes[8:]))
+    ptr = ctypes.c_wchar_p()
+    if ctypes.windll.shell32.SHGetKnownFolderPath(ctypes.byref(g), 0, None, ctypes.byref(ptr)) != 0:
+        raise OSError("pasta não encontrada")
+    path = ptr.value
+    ctypes.windll.ole32.CoTaskMemFree(ptr)
+    return path
+
+
+@tool("abrir_pasta", "abre downloads, documentos, imagens...", confirm=True)
+def abrir_pasta(arg):
+    q = re.sub(r"^(a |as |o |os |minha |minhas |meus |meu )?(pasta )?(de |do |da |dos |das )?", "", norm(arg))
+    q = _FOLDER_ALIASES.get(q, q)
+    if q in ("usuario", "home", "pessoal", "inicio"):
+        _open(str(Path.home()))
+        return "ok: abri a pasta do usuário"
+    if q not in _KNOWN_FOLDERS:
+        return f"erro: não conheço a pasta {arg}"
+    nome, guid = _KNOWN_FOLDERS[q]
+    path = _known_folder(guid) if WINDOWS else str(Path.home() / nome)
+    _open(path)
+    return f"ok: abri a pasta {nome}"
+
+
+# ====================================================================== CLIMA
+_WMO = {0: "céu limpo", 1: "quase limpo", 2: "parcialmente nublado", 3: "nublado", 45: "neblina", 48: "neblina",
+        51: "garoa fraca", 53: "garoa", 55: "garoa forte", 61: "chuva fraca", 63: "chuva", 65: "chuva forte",
+        66: "chuva congelante", 67: "chuva congelante", 71: "neve fraca", 73: "neve", 75: "neve forte",
+        80: "pancadas de chuva", 81: "pancadas de chuva", 82: "pancadas fortes", 95: "tempestade",
+        96: "tempestade com granizo", 99: "tempestade com granizo"}
+
+
+def _get_json(url):
+    req = urllib.request.Request(url, headers={"User-Agent": "mini-gpt-assistente"})
+    with urllib.request.urlopen(req, timeout=8) as r:
+        return json.loads(r.read().decode("utf-8"))
+
+
+@tool("clima", "previsão do tempo (Open-Meteo)")
+def clima(arg):
+    cidade = re.sub(r"^(em |no |na |de |pra |para )", "", arg.strip(" ?"), flags=re.IGNORECASE)
+    if not cidade:
+        cidade = _load_json("config.json", {}).get("cidade", "")
+    if not cidade:
+        return "erro: não sei sua cidade"
+    try:
+        geo = _get_json("https://geocoding-api.open-meteo.com/v1/search?count=1&language=pt&name="
+                        + urllib.parse.quote(cidade))
+        if not geo.get("results"):
+            return f"erro: não achei a cidade {cidade}"
+        g = geo["results"][0]
+        w = _get_json(f"https://api.open-meteo.com/v1/forecast?latitude={g['latitude']}&longitude={g['longitude']}"
+                      "&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,"
+                      "precipitation_probability_max&timezone=auto&forecast_days=1")
+    except OSError:
+        return "erro: sem internet"
+    cur, day = w["current"], w["daily"]
+    desc = _WMO.get(cur["weather_code"], "tempo instável")
+    chuva = day.get("precipitation_probability_max", [None])[0]
+    texto = (f"{g['name']}: {cur['temperature_2m']:.0f}°C, {desc}, máx {day['temperature_2m_max'][0]:.0f}°C, "
+             f"mín {day['temperature_2m_min'][0]:.0f}°C")
+    if chuva is not None:
+        texto += f", chuva {chuva}%"
+    return "ok: " + texto
+
+
+# ===================================================================== SISTEMA
+@tool("bloquear", "bloqueia a tela do PC", confirm=True)
+def bloquear(arg):
+    if WINDOWS and not DRY_RUN:
+        import ctypes
+        ctypes.windll.user32.LockWorkStation()
+    return "ok: tela bloqueada"
+
+
+def describe():
+    return "\n".join(f"  {t.name:<12} {t.desc}" + ("  (pede confirmação)" if t.confirm else "")
+                     for t in TOOLS.values())
+
+
+if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")
+    args = [a for a in sys.argv[1:] if a != "--dry-run"]
+    DRY_RUN = "--dry-run" in sys.argv
+    if args:
+        print(run(args[0], " ".join(args[1:])))
+    else:
+        apps = APPS.load(refresh=True)
+        print(f"{len(apps)} apps no menu Iniciar:")
+        for a in sorted(apps, key=lambda a: a["name"].lower()):
+            print("  " + a["name"])
+        print("\nFerramentas:\n" + describe())

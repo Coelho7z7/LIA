@@ -1,0 +1,14 @@
+# Dados pessoais: o que a IA sabe sobre você
+memoria/
+
+# Modelos, dados tokenizados e logs (o treino recria tudo)
+out/
+
+# Conversas sintéticas (o make_dialogues.py gera de novo)
+data/conversas/sinteticas.jsonl
+
+# Ambiente Python
+.venv/
+venv/
+__pycache__/
+*.pyc

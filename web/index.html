@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mini-GPT</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --panel: #ffffff; --ink: #1d1c1a; --muted: #6f6c66; --line: #e4e1da;
+    --accent: #3b5bdb; --accent-ink: #ffffff; --user: #1d1c1a; --user-ink: #ffffff;
+    --ok: #2b8a3e; --err: #c92a2a; --warn: #e8590c; --chip: #efede8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141414; --panel: #1d1d1d; --ink: #ecebe8; --muted: #9a978f; --line: #2e2d2b;
+      --accent: #748ffc; --accent-ink: #0b0b0b; --user: #ecebe8; --user-ink: #141414;
+      --ok: #69db7c; --err: #ff8787; --warn: #ffa94d; --chip: #262625;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+         display: flex; flex-direction: column; }
+  header { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line);
+           background: var(--panel); }
+  .avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--accent); color: var(--accent-ink);
+            display: grid; place-items: center; font-weight: 700; flex: none; }
+  .title { flex: 1; min-width: 0; }
+  .title b { display: block; }
+  .title small { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  .icon-btn { background: none; border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; }
+  .icon-btn:hover { background: var(--chip); }
+  main { flex: 1; overflow-y: auto; }
+  #log { max-width: 760px; margin: 0 auto; padding: 20px 16px 8px; display: flex; flex-direction: column; gap: 10px; }
+  .msg { max-width: 85%; padding: 9px 13px; border-radius: 16px; white-space: pre-wrap; word-wrap: break-word; }
+  .user { align-self: flex-end; background: var(--user); color: var(--user-ink); border-bottom-right-radius: 4px; }
+  .bot { align-self: flex-start; background: var(--panel); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+  .bot.typing::after { content: "▍"; animation: blink 1s steps(1) infinite; color: var(--muted); }
+  @keyframes blink { 50% { opacity: 0; } }
+  .card { align-self: flex-start; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; max-width: 85%;
+          padding: 8px 12px; border-radius: 12px; background: var(--chip); font-size: 14px; }
+  .card .what { color: var(--muted); }
+  .card .arg { font-weight: 600; }
+  .card .res { width: 100%; font-size: 13px; }
+  .card .res.ok { color: var(--ok); } .card .res.err { color: var(--err); }
+  .card button { border: 0; border-radius: 8px; padding: 4px 12px; }
+  .card .yes { background: var(--accent); color: var(--accent-ink); }
+  .card .no { background: transparent; border: 1px solid var(--line); }
+  .empty { text-align: center; color: var(--muted); margin-top: 12vh; }
+  .empty h2 { color: var(--ink); font-weight: 600; margin: 0 0 6px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 18px; }
+  .chip { background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; }
+  .chip:hover { border-color: var(--accent); }
+  footer { padding: 12px 16px 16px; }
+  form { max-width: 760px; margin: 0 auto; display: flex; gap: 8px; align-items: flex-end; background: var(--panel);
+         border: 1px solid var(--line); border-radius: 16px; padding: 8px 8px 8px 14px; }
+  textarea { flex: 1; resize: none; border: 0; outline: 0; background: transparent; color: inherit; font: inherit;
+             max-height: 160px; padding: 6px 0; }
+  .send { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 10px; padding: 8px 14px;
+          font-weight: 600; }
+  .send:disabled { opacity: .4; cursor: default; }
+  #settings { position: absolute; right: 16px; top: 60px; width: min(340px, calc(100vw - 32px)); background: var(--panel);
+              border: 1px solid var(--line); border-radius: 14px; padding: 14px; box-shadow: 0 8px 30px rgba(0,0,0,.15);
+              display: none; z-index: 5; }
+  #settings.open { display: block; }
+  #settings label { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 0; }
+  #settings small { color: var(--muted); display: block; }
+  #settings ul { margin: 8px 0 0; padding-left: 18px; color: var(--muted); font-size: 13px; max-height: 180px; overflow: auto; }
+  #toast { position: fixed; left: 50%; top: 16px; transform: translateX(-50%); background: var(--warn); color: #000;
+           padding: 10px 16px; border-radius: 12px; font-weight: 600; display: none; z-index: 10; }
+  @media (max-width: 520px) { .msg, .card { max-width: 95%; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="avatar">IA</div>
+  <div class="title"><b>mini-GPT</b><small id="status">carregando...</small></div>
+  <button class="icon-btn" id="newchat" title="Conversa nova">Nova</button>
+  <button class="icon-btn" id="gear" title="Ajustes">Ajustes</button>
+</header>
+<div id="settings">
+  <label><span>Executar sem perguntar<small>abre apps e sites direto</small></span><input type="checkbox" id="auto"></label>
+  <label><span>Ler respostas em voz alta</span><input type="checkbox" id="voice"></label>
+  <label><span>Criatividade <small id="tempval"></small></span><input type="range" id="temp" min="0" max="1.2" step="0.1"></label>
+  <small style="margin-top:8px">O que eu sei fazer:</small>
+  <ul id="toollist"></ul>
+</div>
+<div id="toast"></div>
+<main id="scroller">
+  <div id="log">
+    <div class="empty" id="empty">
+      <h2>E aí! Manda.</h2>
+      <div>IA treinada do zero, rodando inteira no seu PC.</div>
+      <div class="chips">
+        <button class="chip">abre o spotify</button>
+        <button class="chip">que horas são?</button>
+        <button class="chip">me lembra de beber água em 20 minutos</button>
+        <button class="chip">quanto é 15% de 200?</button>
+        <button class="chip">como tá o tempo em Recife?</button>
+        <button class="chip">me conta uma piada</button>
+      </div>
+    </div>
+  </div>
+</main>
+<footer>
+  <form id="form">
+    <textarea id="input" rows="1" placeholder="Escreve aqui..." autofocus></textarea>
+    <button class="send" id="send">Enviar</button>
+  </form>
+</footer>
+<script>
+const TOKEN = "__TOKEN__";
+const LABELS = {
+  abrir_app: ["🧩", "Abrir app"], abrir_site: ["🌐", "Abrir site"], pesquisar: ["🔎", "Pesquisar no Google"],
+  youtube: ["▶️", "Buscar no YouTube"], hora: ["🕒", "Ver a hora"], data: ["📅", "Ver a data"],
+  calcular: ["🧮", "Calcular"], lembrete: ["⏰", "Criar lembrete"], anotar: ["📝", "Anotar"],
+  ver_notas: ["📒", "Ler notas"], lembrar: ["🧠", "Guardar na memória"], recordar: ["🧠", "Consultar memória"],
+  volume: ["🔊", "Volume"], midia: ["⏯️", "Mídia"], abrir_pasta: ["📁", "Abrir pasta"], clima: ["⛅", "Clima"],
+  bloquear: ["🔒", "Bloquear tela"],
+};
+const $ = (id) => document.getElementById(id);
+const log = $("log"), input = $("input"), sendBtn = $("send");
+let busy = false, bubble = null, lastCard = null, pendingCard = null;
+
+function api(path, body) {
+  return fetch(path, { method: body === undefined ? "GET" : "POST",
+    headers: { "Content-Type": "application/json", "X-Token": TOKEN },
+    body: body === undefined ? undefined : JSON.stringify(body) });
+}
+function scroll() { $("scroller").scrollTop = $("scroller").scrollHeight; }
+function add(cls, text) {
+  $("empty")?.remove();
+  const el = document.createElement("div");
+  el.className = cls; el.textContent = text || "";
+  log.appendChild(el); scroll(); return el;
+}
+function setBusy(b) { busy = b; sendBtn.disabled = b; }
+function speak(text) {
+  if (!$("voice").checked || !window.speechSynthesis) return;
+  const u = new SpeechSynthesisUtterance(text); u.lang = "pt-BR";
+  const v = speechSynthesis.getVoices().find((v) => v.lang.startsWith("pt")); if (v) u.voice = v;
+  speechSynthesis.cancel(); speechSynthesis.speak(u);
+}
+
+function addCard(ev) {
+  const [icon, label] = LABELS[ev.tool] || ["⚙️", ev.tool];
+  const card = add("card");
+  card.innerHTML = `<span>${icon}</span><span class="what"></span><span class="arg"></span>`;
+  card.querySelector(".what").textContent = label;
+  card.querySelector(".arg").textContent = ev.arg;
+  return card;
+}
+function askConfirm(card) {
+  pendingCard = card;
+  const yes = document.createElement("button"), no = document.createElement("button");
+  yes.className = "yes"; yes.textContent = "Executar"; no.className = "no"; no.textContent = "Cancelar";
+  const answer = (approve) => { yes.remove(); no.remove(); pendingCard = null; stream("/api/confirm", { approve }); };
+  yes.onclick = () => answer(true); no.onclick = () => answer(false);
+  card.append(yes, no); yes.focus();
+}
+function setResult(card, text) {
+  if (!card) return;
+  const r = document.createElement("div");
+  r.className = "res " + (text.startsWith("ok") ? "ok" : "err");
+  r.textContent = text.replace(/^ok:\s*/, "✓ ").replace(/^(erro|cancelado):\s*/, "✗ ");
+  card.appendChild(r); scroll();
+}
+
+function handle(ev) {
+  if (ev.type === "token") {
+    if (!bubble) { bubble = add("msg bot typing"); }
+    bubble.textContent += ev.text; scroll();
+  } else if (ev.type === "text") {
+    if (bubble) bubble.classList.remove("typing");
+    bubble = null; speak(ev.text);
+  } else if (ev.type === "call") {
+    lastCard = addCard(ev);
+  } else if (ev.type === "confirm") {
+    askConfirm(lastCard);
+  } else if (ev.type === "result") {
+    setResult(lastCard, ev.text);
+  }
+}
+
+async function stream(path, body) {
+  setBusy(true);
+  try {
+    const res = await api(path, body);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const reader = res.body.getReader(), dec = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, i); buf = buf.slice(i + 1);
+        if (line.trim()) handle(JSON.parse(line));
+      }
+    }
+  } catch (e) {
+    add("msg bot", "Deu ruim na conexão com o servidor (" + e.message + "). Ele ainda tá rodando?");
+  } finally {
+    if (bubble) bubble.classList.remove("typing");
+    bubble = null; setBusy(false); input.focus();
+  }
+}
+
+function send(text) {
+  text = text.trim();
+  if (!text || busy) return;
+  if (pendingCard) { pendingCard.querySelectorAll("button").forEach((b) => b.remove()); setResult(pendingCard, "cancelado: mensagem nova"); pendingCard = null; }
+  add("msg user", text);
+  input.value = ""; input.style.height = "";
+  stream("/api/chat", { text });
+}
+
+$("form").onsubmit = (e) => { e.preventDefault(); send(input.value); };
+input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input.value); } });
+input.addEventListener("input", () => { input.style.height = "auto"; input.style.height = input.scrollHeight + "px"; });
+document.querySelectorAll(".chip").forEach((c) => c.onclick = () => send(c.textContent));
+$("gear").onclick = () => $("settings").classList.toggle("open");
+$("newchat").onclick = async () => {
+  await api("/api/reset", {}); log.innerHTML = ""; pendingCard = null;
+  add("msg bot", "Conversa nova. Manda!");
+};
+$("auto").onchange = () => api("/api/settings", { auto: $("auto").checked });
+$("temp").oninput = () => { $("tempval").textContent = $("temp").value; };
+$("temp").onchange = () => api("/api/settings", { temperature: parseFloat($("temp").value) });
+try { $("voice").checked = localStorage.getItem("voz") === "1"; } catch (e) {}
+$("voice").onchange = () => { try { localStorage.setItem("voz", $("voice").checked ? "1" : "0"); } catch (e) {} };
+
+(async () => {
+  try {
+    const info = await (await api("/api/info")).json();
+    $("status").textContent = `${(info.params / 1e6).toFixed(1)}M parâmetros · ${info.apps} apps encontrados` +
+      (info.simulado ? " · modo simulado" : "");
+    $("auto").checked = info.auto;
+    $("temp").value = info.temperature; $("tempval").textContent = info.temperature;
+    $("toollist").innerHTML = "";
+    for (const t of info.tools) {
+      const li = document.createElement("li");
+      li.textContent = `${(LABELS[t.name] || ["", t.name])[1]}: ${t.desc}` + (t.confirm ? " (pede confirmação)" : "");
+      $("toollist").appendChild(li);
+    }
+  } catch (e) { $("status").textContent = "sem conexão com o servidor"; }
+})();
+
+// Lembretes que disparam enquanto a página está aberta
+setInterval(async () => {
+  try {
+    const evs = await (await api("/api/events")).json();
+    for (const ev of evs) {
+      const t = $("toast"); t.textContent = "⏰ " + ev.text; t.style.display = "block";
+      setTimeout(() => (t.style.display = "none"), 8000);
+      add("msg bot", "⏰ Lembrete: " + ev.text); speak("Lembrete: " + ev.text);
+    }
+  } catch (e) {}
+}, 4000);
+</script>
+</body>
+</html>
