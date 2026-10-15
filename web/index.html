@@ -10,14 +10,15 @@
     --bg: #f5f4f0; --panel: #ffffff; --panel-2: #faf9f6; --ink: #1c1b19; --muted: #6e6b64; --line: #e6e3dc;
     --accent: #111111; --accent-ink: #ffffff; --accent-soft: #ecebe7;
     --user: #111111; --user-ink: #ffffff; --logo-bg: #111111; --logo-fg: #ffffff;
-    --ok: #2b8a3e; --err: #c92a2a; --warn: #f08c00; --chip: #f0eee9;
+    --ok: #2b8a3e; --err: #c92a2a; --warn: #f08c00; --chip: #f0eee9; --side: #efede8;
     --shadow: 0 1px 2px rgba(0,0,0,.04), 0 6px 24px rgba(0,0,0,.06);
+    --ease: cubic-bezier(.2, .8, .2, 1); --spring: cubic-bezier(.34, 1.56, .64, 1);
   }
   :root[data-theme="dark"] {
     --bg: #121214; --panel: #1b1b1f; --panel-2: #17171a; --ink: #ecebe8; --muted: #9b98a3; --line: #2b2b31;
     --accent: #f2f1ee; --accent-ink: #111111; --accent-soft: #2a2a2e;
     --user: #f2f1ee; --user-ink: #111111; --logo-bg: #f2f1ee; --logo-fg: #111111;
-    --ok: #69db7c; --err: #ff8787; --warn: #ffc078; --chip: #232328;
+    --ok: #69db7c; --err: #ff8787; --warn: #ffc078; --chip: #232328; --side: #161619;
     --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 28px rgba(0,0,0,.35);
   }
   @media (prefers-color-scheme: dark) {
@@ -25,81 +26,129 @@
       --bg: #121214; --panel: #1b1b1f; --panel-2: #17171a; --ink: #ecebe8; --muted: #9b98a3; --line: #2b2b31;
       --accent: #f2f1ee; --accent-ink: #111111; --accent-soft: #2a2a2e;
       --user: #f2f1ee; --user-ink: #111111; --logo-bg: #f2f1ee; --logo-fg: #111111;
-      --ok: #69db7c; --err: #ff8787; --warn: #ffc078; --chip: #232328;
+      --ok: #69db7c; --err: #ff8787; --warn: #ffc078; --chip: #232328; --side: #161619;
       --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 28px rgba(0,0,0,.35);
     }
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
   body { background: var(--bg); color: var(--ink); font: 15px/1.55 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
-         display: flex; flex-direction: column; -webkit-font-smoothing: antialiased; }
+         display: flex; overflow: hidden; -webkit-font-smoothing: antialiased; }
+  html.theming * { transition: background-color .3s, border-color .3s, color .3s !important; }
   button { font: inherit; color: inherit; cursor: pointer; }
   svg { display: block; }
+  .ico { width: 19px; height: 19px; }
 
-  /* ---------- topo */
+  /* ---------- histórico (lateral) */
+  #history { width: 268px; flex: none; background: var(--side); border-right: 1px solid var(--line); display: flex;
+             flex-direction: column; transition: margin-left .3s var(--ease); z-index: 7; }
+  body.hist-closed #history { margin-left: -268px; }
+  .hist-head { display: flex; align-items: center; gap: 8px; padding: 10px 10px 6px 14px; }
+  .hist-head b { flex: 1; font-size: 14px; }
+  .new-btn { display: flex; align-items: center; gap: 10px; margin: 4px 10px 8px; padding: 9px 12px; border-radius: 10px;
+             border: 1px solid var(--line); background: var(--panel); font-weight: 600; font-size: 14px;
+             transition: transform .15s var(--ease), border-color .15s; }
+  .new-btn:hover { border-color: var(--ink); }
+  .new-btn:active { transform: scale(.98); }
+  .new-btn svg { width: 17px; height: 17px; }
+  #chatlist { flex: 1; overflow-y: auto; padding: 0 8px 12px; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+  #chatlist h5 { margin: 14px 8px 4px; font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+  .chat-item { position: relative; display: flex; align-items: center; width: 100%; border: 0; background: none; text-align: left;
+               padding: 8px 34px 8px 10px; border-radius: 9px; font-size: 14px; color: var(--ink); }
+  .chat-item span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .chat-item:hover { background: var(--chip); }
+  .chat-item.on { background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); font-weight: 600; }
+  .chat-item.new { animation: rise .35s var(--ease) both; }
+  .chat-item .del { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 26px; height: 26px;
+                    display: grid; place-items: center; border-radius: 7px; color: var(--muted); opacity: 0; transition: opacity .15s; }
+  .chat-item:hover .del, .chat-item .del:focus-visible { opacity: 1; }
+  .chat-item .del:hover { background: var(--line); color: var(--err); }
+  .chat-item .del svg { width: 15px; height: 15px; }
+  .hist-empty { color: var(--muted); font-size: 13px; padding: 16px 10px; }
+  .hist-foot { padding: 10px 14px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+
+  /* ---------- área principal */
+  .app { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--panel);
            border-bottom: 1px solid var(--line); }
   .avatar { width: 38px; height: 38px; border-radius: 10px; flex: none; background: var(--logo-bg); color: var(--logo-fg); }
   .avatar svg { width: 100%; height: 100%; fill: currentColor; }
   .avatar.sm { width: 28px; height: 28px; border-radius: 7px; }
+  .avatar.busy svg rect:last-child, .row.thinking .avatar svg rect:last-child { animation: blink .9s steps(1) infinite; }
   .title { flex: 1; min-width: 0; }
   .title b { display: block; font-size: 16px; letter-spacing: .1px; }
   .title small { color: var(--muted); display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; }
   .title small span { overflow: hidden; text-overflow: ellipsis; }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
-  .dot.on { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 20%, transparent); }
-  .dot.busy { background: var(--warn); animation: pulse 1.2s ease-in-out infinite; }
   @keyframes pulse { 50% { opacity: .35; } }
   .icon-btn { display: grid; place-items: center; width: 36px; height: 36px; background: none; border: 1px solid transparent;
-              border-radius: 10px; color: var(--muted); }
+              border-radius: 10px; color: var(--muted); flex: none; transition: background .15s, color .15s, transform .15s var(--ease); }
   .icon-btn:hover { background: var(--chip); color: var(--ink); }
-  .icon-btn:focus-visible, .send:focus-visible, .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .icon-btn:active { transform: scale(.92); }
+  #gear svg { transition: transform .5s var(--spring); }
+  #gear:hover svg { transform: rotate(60deg); }
+  .icon-btn:focus-visible, .send:focus-visible, .chip:focus-visible, .new-btn:focus-visible, .chat-item:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px; }
 
   /* ---------- conversa */
   main { flex: 1; overflow-y: auto; scroll-behavior: smooth; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
-  main::-webkit-scrollbar { width: 8px; } main::-webkit-scrollbar-button { display: none; }
-  main::-webkit-scrollbar-thumb { background: var(--line); border-radius: 8px; }
+  main::-webkit-scrollbar, #chatlist::-webkit-scrollbar { width: 8px; }
+  main::-webkit-scrollbar-button, #chatlist::-webkit-scrollbar-button { display: none; }
+  main::-webkit-scrollbar-thumb, #chatlist::-webkit-scrollbar-thumb { background: var(--line); border-radius: 8px; }
   #log { max-width: 780px; margin: 0 auto; padding: 24px 16px 12px; display: flex; flex-direction: column; gap: 6px; }
-  .row { display: flex; gap: 10px; align-items: flex-end; animation: in .18s ease-out; }
-  @keyframes in { from { opacity: 0; transform: translateY(4px); } }
-  .row.user { justify-content: flex-end; }
+  .row { display: flex; gap: 10px; align-items: flex-end; animation: in-bot .38s var(--ease) both; transform-origin: bottom left; }
+  .row.user { justify-content: flex-end; animation-name: in-user; transform-origin: bottom right; }
   .row.bot { align-items: flex-start; }
   .row.bot .time { align-self: flex-end; }
-  #log.restored .row { animation: none; }
+  @keyframes in-bot { from { opacity: 0; transform: translate(-10px, 6px) scale(.97); } }
+  @keyframes in-user { from { opacity: 0; transform: translate(10px, 6px) scale(.97); } }
+  #log.restored .row, #log.restored .tk, #log.restored .st path, #log.restored .out { animation: none; }
+  #log.swap { animation: fade .3s var(--ease); }
+  @keyframes fade { from { opacity: 0; } }
   .row.bot .avatar { visibility: hidden; }
   .row.bot.first .avatar { visibility: visible; }
   .row.first { margin-top: 10px; }
   .msg { max-width: min(78%, 620px); padding: 9px 14px; border-radius: 18px; white-space: pre-wrap; word-wrap: break-word; }
   .user .msg { background: var(--user); color: var(--user-ink); border-bottom-right-radius: 6px; }
   .bot .msg { background: var(--panel); border: 1px solid var(--line); border-bottom-left-radius: 6px; box-shadow: var(--shadow); }
-  .bot .msg.typing::after { content: "▍"; animation: blink 1s steps(1) infinite; color: var(--accent); margin-left: 1px; }
+  .bot .msg.typing::after { content: "▍"; animation: blink .9s steps(1) infinite; color: var(--ink); margin-left: 1px; }
   .bot .msg.alert { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); background: color-mix(in srgb, var(--warn) 10%, var(--panel)); }
+  .tk { animation: tk .4s ease-out both; }
+  @keyframes tk { from { opacity: 0; filter: blur(3px); } }
   @keyframes blink { 50% { opacity: 0; } }
   .dots { display: inline-flex; gap: 4px; padding: 4px 0; }
-  .dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); animation: bounce 1.2s infinite ease-in-out; }
+  .dots i { width: 7px; height: 7px; border-radius: 2px; background: var(--muted); animation: bounce 1.2s infinite ease-in-out; }
   .dots i:nth-child(2) { animation-delay: .15s; } .dots i:nth-child(3) { animation-delay: .3s; }
-  @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); opacity: .5; } 30% { transform: translateY(-4px); opacity: 1; } }
+  @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); opacity: .45; } 30% { transform: translateY(-4px); opacity: 1; } }
   .time { font-size: 11px; color: var(--muted); opacity: 0; transition: opacity .15s; align-self: center; flex: none; }
   .row:hover .time { opacity: 1; }
 
   /* ferramenta: uma linha compacta (ícone, ação, argumento, resultado, status) */
   .tool { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; max-width: min(78%, 620px);
           padding: 6px 12px 6px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel-2);
-          font-size: 13.5px; color: var(--muted); line-height: 1.4; }
+          font-size: 13.5px; color: var(--muted); line-height: 1.4; transition: border-color .25s; }
   .tool svg { width: 16px; height: 16px; flex: none; }
   .tool .ti { display: flex; color: var(--ink); }
+  .tool.wait .ti { animation: pulse 1.2s ease-in-out infinite; }
   .tool .arg { color: var(--ink); font-weight: 600; word-break: break-word; }
   .tool .out { color: var(--ink); word-break: break-word; }
+  .tool .out:not(:empty) { animation: slide-in .35s var(--ease) both; }
+  @keyframes slide-in { from { opacity: 0; transform: translateX(-6px); } }
   .tool .out::before { content: "→ "; color: var(--muted); }
   .tool .arg:empty, .tool .out:empty { display: none; }
   .tool .st { display: flex; }
+  .tool.ok .st path, .tool.err .st path, .tool.off .st path { stroke-dasharray: 30; animation: draw .5s var(--ease) both; }
+  @keyframes draw { from { stroke-dashoffset: 30; } }
   .tool.ok .st { color: var(--ok); }
   .tool.err .st, .tool.err .out { color: var(--err); }
   .tool.off .out, .tool.off .st { color: var(--muted); }
   .tool.ask { border-color: var(--ink); }
-  .tool .actions { flex-basis: 100%; display: flex; gap: 8px; margin: 6px 0 2px; align-items: center; flex-wrap: wrap; }
+  .tool .actions { flex-basis: 100%; display: flex; gap: 8px; margin: 6px 0 2px; align-items: center; flex-wrap: wrap;
+                   animation: drop .3s var(--ease) both; }
+  @keyframes drop { from { opacity: 0; transform: translateY(-5px); } }
   .tool .actions small { color: var(--muted); font-size: 12px; }
-  .tool button { border: 0; border-radius: 8px; padding: 5px 14px; font-weight: 600; font-size: 13.5px; }
+  .tool button { border: 0; border-radius: 8px; padding: 5px 14px; font-weight: 600; font-size: 13.5px;
+                 transition: transform .15s var(--ease), opacity .15s, background .15s; }
+  .tool button:active { transform: scale(.95); }
   .tool .yes { background: var(--accent); color: var(--accent-ink); }
   .tool .yes:hover { opacity: .88; }
   .tool .no { background: transparent; border: 1px solid var(--line); color: var(--ink); }
@@ -110,13 +159,21 @@
 
   /* tela inicial */
   .empty { text-align: center; margin: 4vh auto 0; max-width: 560px; }
-  .empty .avatar { width: 64px; height: 64px; border-radius: 16px; margin: 0 auto 18px; }
+  .empty h2, .empty p { animation: rise .6s var(--ease) both; }
+  .empty h2 { animation-delay: .08s; } .empty p { animation-delay: .14s; }
+  @keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+  .empty .avatar { width: 64px; height: 64px; border-radius: 16px; margin: 0 auto 18px; animation: pop .6s var(--spring) both; }
+  .empty .avatar svg rect:last-child { animation: blink .9s steps(1) 3 .6s; }
+  @keyframes pop { from { opacity: 0; transform: scale(.6) rotate(-8deg); } }
   .empty h2 { font-size: 26px; font-weight: 650; margin: 0 0 6px; letter-spacing: -.2px; }
   .empty p { color: var(--muted); margin: 0; }
   .chips { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; margin-top: 24px; text-align: left; }
   .chip { display: flex; gap: 10px; align-items: center; background: var(--panel); border: 1px solid var(--line);
-          border-radius: 14px; padding: 10px 12px; text-align: left; transition: border-color .15s, transform .15s; }
-  .chip:hover { border-color: var(--accent); transform: translateY(-1px); }
+          border-radius: 14px; padding: 10px 12px; text-align: left;
+          transition: border-color .15s, transform .2s var(--ease), box-shadow .2s;
+          animation: rise .5s var(--ease) both; animation-delay: calc(.2s + var(--i, 0) * .05s); }
+  .chip:hover { border-color: var(--ink); transform: translateY(-2px); box-shadow: var(--shadow); }
+  .chip:active { transform: scale(.98); }
   .chip .ci { display: flex; color: var(--muted); }
   .chip svg { width: 18px; height: 18px; }
 
@@ -124,24 +181,27 @@
   footer { padding: 10px 16px 14px; }
   form { max-width: 780px; margin: 0 auto; display: flex; gap: 8px; align-items: flex-end; background: var(--panel);
          border: 1px solid var(--line); border-radius: 18px; padding: 8px 8px 8px 16px; box-shadow: var(--shadow);
-         transition: border-color .15s; }
-  form:focus-within { border-color: color-mix(in srgb, var(--accent) 60%, var(--line)); }
+         transition: border-color .2s; }
+  form:focus-within { border-color: color-mix(in srgb, var(--ink) 45%, var(--line)); }
   textarea { flex: 1; resize: none; border: 0; outline: 0; background: transparent; color: inherit; font: inherit;
              max-height: 180px; padding: 7px 0; }
   textarea::placeholder { color: var(--muted); }
   .send { display: grid; place-items: center; width: 38px; height: 38px; background: var(--accent); color: var(--accent-ink);
-          border: 0; border-radius: 12px; flex: none; transition: transform .1s; }
-  .send:hover:not(:disabled) { transform: scale(1.05); }
-  .send:disabled { opacity: .35; cursor: default; }
+          border: 0; border-radius: 12px; flex: none; transition: transform .2s var(--spring), opacity .2s; }
+  .send:hover:not(:disabled) { transform: scale(1.06); }
+  .send:hover:not(:disabled) svg { animation: nudge .5s var(--ease); }
+  .send:active:not(:disabled) { transform: scale(.9); }
+  @keyframes nudge { 40% { transform: translateY(-3px); } }
+  .send:disabled { opacity: .3; cursor: default; }
   .hint { max-width: 780px; margin: 6px auto 0; color: var(--muted); font-size: 12px; text-align: center; }
   kbd { font: 11px/1 inherit; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 1px 5px; }
 
-  /* ---------- ajustes */
-  #shade { position: fixed; inset: 0; background: rgba(0,0,0,.25); opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 5; }
+  /* ---------- configurações */
+  #shade { position: fixed; inset: 0; background: rgba(0,0,0,.28); opacity: 0; pointer-events: none; transition: opacity .3s var(--ease); z-index: 6; }
   #shade.open { opacity: 1; pointer-events: auto; }
   #settings { position: fixed; top: 0; right: 0; bottom: 0; width: min(360px, 100vw); background: var(--panel);
-              border-left: 1px solid var(--line); box-shadow: var(--shadow); padding: 18px; overflow-y: auto; z-index: 6;
-              transform: translateX(100%); transition: transform .22s ease; }
+              border-left: 1px solid var(--line); box-shadow: var(--shadow); padding: 18px; overflow-y: auto; z-index: 8;
+              transform: translateX(100%); transition: transform .35s var(--ease); scrollbar-width: thin; }
   #settings.open { transform: none; }
   #settings h3 { margin: 0; font-size: 17px; flex: 1; }
   #settings .head { display: flex; align-items: center; margin-bottom: 8px; }
@@ -149,15 +209,16 @@
   #settings label { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 0; }
   #settings label small { color: var(--muted); display: block; font-size: 12.5px; }
   .switch { appearance: none; width: 38px; height: 22px; border-radius: 999px; background: var(--line); position: relative;
-            cursor: pointer; flex: none; transition: background .15s; margin: 0; }
+            cursor: pointer; flex: none; transition: background .2s; margin: 0; }
   .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%;
-                   background: #fff; transition: transform .15s; box-shadow: 0 1px 2px rgba(0,0,0,.3); }
+                   background: #fff; transition: transform .3s var(--spring); box-shadow: 0 1px 2px rgba(0,0,0,.3); }
   .switch:checked { background: var(--accent); }
-  .switch:checked::after { transform: translateX(16px); }
+  .switch:checked::after { transform: translateX(16px); background: var(--accent-ink); }
   input[type=range] { width: 100%; accent-color: var(--accent); }
   .range-labels { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; }
   .seg { display: flex; background: var(--chip); border-radius: 10px; padding: 3px; gap: 3px; }
-  .seg button { flex: 1; border: 0; background: none; border-radius: 8px; padding: 5px 0; color: var(--muted); font-size: 13.5px; }
+  .seg button { flex: 1; border: 0; background: none; border-radius: 8px; padding: 5px 0; color: var(--muted); font-size: 13.5px;
+                transition: background .2s, color .2s; }
   .seg button.on { background: var(--panel); color: var(--ink); box-shadow: var(--shadow); }
   #toollist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
   #toollist li { display: grid; grid-template-columns: 26px 1fr; gap: 0 8px; font-size: 13.5px; align-items: center; }
@@ -168,10 +229,16 @@
 
   /* aviso de lembrete */
   #toast { position: fixed; left: 50%; top: 14px; transform: translate(-50%, -200%); background: var(--panel); color: var(--ink);
-           border: 1px solid var(--line); border-left: 4px solid var(--warn); box-shadow: var(--shadow);
-           padding: 10px 16px; border-radius: 12px; font-weight: 600; z-index: 10; transition: transform .3s ease, visibility .3s; max-width: 90vw; visibility: hidden; }
+           border: 1px solid var(--line); border-left: 4px solid var(--warn); border-radius: 0 12px 12px 0; box-shadow: var(--shadow);
+           padding: 10px 16px; font-weight: 600; z-index: 10; max-width: 90vw; visibility: hidden;
+           transition: transform .5s var(--spring), visibility .5s; }
   #toast.show { transform: translate(-50%, 0); visibility: visible; }
 
+  @media (max-width: 900px) {
+    #history { position: fixed; top: 0; bottom: 0; left: 0; box-shadow: var(--shadow); }
+    body:not(.hist-open) #history { margin-left: -268px; }
+    body.hist-open #history { margin-left: 0; }
+  }
   @media (max-width: 560px) {
     .msg, .tool { max-width: 88%; }
     .hint { display: none; }
@@ -181,20 +248,48 @@
 </style>
 </head>
 <body>
+<aside id="history" aria-label="Conversas">
+  <div class="hist-head"><b>Conversas</b>
+    <button class="icon-btn" id="histclose" title="Fechar painel (Ctrl+B)" aria-label="Fechar painel"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 4v16M15 10l-2 2 2 2"/></svg></button>
+  </div>
+  <button class="new-btn" id="newchat2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Nova conversa</button>
+  <div id="chatlist"></div>
+  <div class="hist-foot">Salvas só neste computador.</div>
+</aside>
+
+<div class="app">
 <header>
-  <div class="avatar"><svg viewBox="0 0 64 64" aria-hidden="true"><rect x="18" y="14" width="10" height="36"/><rect x="18" y="40" width="28" height="10"/><rect x="36" y="24" width="10" height="10"/></svg></div>
-  <div class="title"><b>Lia</b><small><i class="dot" id="dot"></i><span id="status">conectando...</span></small></div>
-  <button class="icon-btn" id="newchat" title="Conversa nova (Ctrl+Shift+O)" aria-label="Conversa nova">
-    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+  <button class="icon-btn" id="histbtn" title="Conversas (Ctrl+B)" aria-label="Mostrar conversas">
+    <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 4v16"/></svg>
   </button>
-  <button class="icon-btn" id="gear" title="Ajustes" aria-label="Ajustes">
-    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>
+  <div class="avatar" id="hlogo"><svg viewBox="0 0 64 64" aria-hidden="true"><rect x="18" y="14" width="10" height="36"/><rect x="18" y="40" width="28" height="10"/><rect x="36" y="24" width="10" height="10"/></svg></div>
+  <div class="title"><b>Lia</b><small><span id="status">conectando...</span></small></div>
+  <button class="icon-btn" id="newchat" title="Nova conversa (Ctrl+Shift+O)" aria-label="Nova conversa">
+    <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+  </button>
+  <button class="icon-btn" id="gear" title="Configurações" aria-label="Configurações">
+    <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 4.3c.4-1.8 2.9-1.8 3.4 0a1.7 1.7 0 0 0 2.6 1.1c1.5-.9 3.3.8 2.4 2.4a1.7 1.7 0 0 0 1 2.5c1.8.4 1.8 2.9 0 3.4a1.7 1.7 0 0 0-1 2.6c.9 1.5-.9 3.3-2.4 2.4a1.7 1.7 0 0 0-2.6 1c-.4 1.8-2.9 1.8-3.4 0a1.7 1.7 0 0 0-2.6-1c-1.5.9-3.3-.9-2.4-2.4a1.7 1.7 0 0 0-1-2.6c-1.8-.4-1.8-2.9 0-3.4a1.7 1.7 0 0 0 1-2.5c-.9-1.6.9-3.3 2.4-2.4a1.7 1.7 0 0 0 2.6-1.1z"/><circle cx="12" cy="12" r="3"/></svg>
   </button>
 </header>
 
+<main id="scroller">
+  <div id="log"></div>
+</main>
+
+<footer>
+  <form id="form">
+    <textarea id="input" rows="1" placeholder="Fala com a Lia..." autofocus></textarea>
+    <button class="send" id="send" aria-label="Enviar" disabled>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+    </button>
+  </form>
+  <div class="hint"><kbd>Enter</kbd> envia · <kbd>Shift</kbd>+<kbd>Enter</kbd> quebra linha · <kbd>↑</kbd> repete a última</div>
+</footer>
+</div>
+
 <div id="shade"></div>
-<aside id="settings" aria-label="Ajustes">
-  <div class="head"><h3>Ajustes</h3>
+<aside id="settings" aria-label="Configurações">
+  <div class="head"><h3>Configurações</h3>
     <button class="icon-btn" id="close" aria-label="Fechar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
   </div>
   <h4>Comportamento</h4>
@@ -211,25 +306,13 @@
   <div class="seg" id="theme">
     <button data-v="auto">Automático</button><button data-v="light">Claro</button><button data-v="dark">Escuro</button>
   </div>
+  <h4>Conversas</h4>
+  <label><span>Apagar todo o histórico<small>remove as conversas salvas neste computador</small></span><button class="icon-btn" id="clearall" aria-label="Apagar histórico" title="Apagar histórico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M5 7l1 13h12l1-13M9 7V4h6v3"/></svg></button></label>
   <h4>O que eu sei fazer</h4>
   <ul id="toollist"></ul>
 </aside>
 
 <div id="toast" role="status"></div>
-
-<main id="scroller">
-  <div id="log"></div>
-</main>
-
-<footer>
-  <form id="form">
-    <textarea id="input" rows="1" placeholder="Fala com a Lia..." autofocus></textarea>
-    <button class="send" id="send" aria-label="Enviar" disabled>
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-    </button>
-  </form>
-  <div class="hint"><kbd>Enter</kbd> envia · <kbd>Shift</kbd>+<kbd>Enter</kbd> quebra linha · <kbd>↑</kbd> repete a última</div>
-</footer>
 
 <script>
 const TOKEN = "__TOKEN__";
@@ -254,9 +337,10 @@ const ICONS = {
   cloud: '<path d="M7 18h10a4 4 0 0 0 .5-8A6 6 0 0 0 6 9.5 4.3 4.3 0 0 0 7 18z"/>',
   lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   smile: '<circle cx="12" cy="12" r="9"/><path d="M9 10h.01M15 10h.01M8.5 14.5a4.5 4.5 0 0 0 7 0"/>',
-  gear: '<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>',
+  gear: '<path d="M10.3 4.3c.4-1.8 2.9-1.8 3.4 0a1.7 1.7 0 0 0 2.6 1.1c1.5-.9 3.3.8 2.4 2.4a1.7 1.7 0 0 0 1 2.5c1.8.4 1.8 2.9 0 3.4a1.7 1.7 0 0 0-1 2.6c.9 1.5-.9 3.3-2.4 2.4a1.7 1.7 0 0 0-2.6 1c-.4 1.8-2.9 1.8-3.4 0a1.7 1.7 0 0 0-2.6-1c-1.5.9-3.3-.9-2.4-2.4a1.7 1.7 0 0 0-1-2.6c-1.8-.4-1.8-2.9 0-3.4a1.7 1.7 0 0 0 1-2.5c-.9-1.6.9-3.3 2.4-2.4a1.7 1.7 0 0 0 2.6-1.1z"/><circle cx="12" cy="12" r="3"/>',
   check: '<path d="m5 12 5 5 9-10"/>',
   x: '<path d="M6 6l12 12M18 6 6 18"/>',
+  trash: '<path d="M4 7h16M10 11v6M14 11v6M5 7l1 13h12l1-13M9 7V4h6v3"/>',
 };
 const ICON = (n) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n] || ICONS.gear}</svg>`;
 const LABELS = {
@@ -275,10 +359,10 @@ const $ = (id) => document.getElementById(id);
 const log = $("log"), input = $("input"), sendBtn = $("send");
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
-  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+  set(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } },
   del(k) { try { localStorage.removeItem(k); } catch (e) {} },
 };
-let busy = false, bubble = null, thinking = null, lastCard = null, pendingCard = null, lastSent = "", lastRole = null;
+let busy = false, bubble = null, thinking = null, lastCard = null, pendingCard = null, lastSent = "", lastRole = null, online = false;
 
 function api(path, body) {
   return fetch(path, { method: body === undefined ? "GET" : "POST",
@@ -294,18 +378,19 @@ function greeting() {
   return h < 5 ? "Ainda acordado?" : h < 12 ? "Bom dia!" : h < 18 ? "Boa tarde!" : "Boa noite!";
 }
 function showEmpty() {
-  log.innerHTML = "";
+  log.innerHTML = ""; log.classList.remove("restored");
   const e = document.createElement("div");
   e.className = "empty"; e.id = "empty";
   e.innerHTML = `<div class="avatar">${GLYPH}</div><h2></h2><p>Sou a ${NAME}, treinada do zero e rodando inteira no seu PC. Pede do seu jeito.</p><div class="chips"></div>`;
   e.querySelector("h2").textContent = greeting();
-  for (const [icon, text] of SUGGESTIONS) {
+  SUGGESTIONS.forEach(([icon, text], i) => {
     const c = document.createElement("button");
-    c.className = "chip"; c.innerHTML = `<span class="ci">${ICON(icon)}</span><span></span>`;
+    c.className = "chip"; c.style.setProperty("--i", i);
+    c.innerHTML = `<span class="ci">${ICON(icon)}</span><span></span>`;
     c.children[1].textContent = text;
     c.onclick = () => send(text);
     e.querySelector(".chips").appendChild(c);
-  }
+  });
   log.appendChild(e); lastRole = null;
 }
 
@@ -328,6 +413,7 @@ function addMsg(role, text, extra) {
 }
 function showThinking() {
   const r = row("bot");
+  r.classList.add("thinking");
   r.insertAdjacentHTML("beforeend", '<div class="msg"><span class="dots"><i></i><i></i><i></i></span></div>');
   thinking = r; scroll();
 }
@@ -339,7 +425,7 @@ function clearThinking() {
 }
 function setBusy(b) {
   busy = b; sendBtn.disabled = b || !input.value.trim();
-  $("dot").className = "dot " + (b ? "busy" : online ? "on" : "");
+  $("hlogo").classList.toggle("busy", b);
 }
 function speak(text) {
   if (!$("voice").checked || !window.speechSynthesis) return;
@@ -395,10 +481,13 @@ function handle(ev) {
   if (ev.type === "token") {
     clearThinking();
     if (!bubble) bubble = addMsg("bot", "", "typing");
-    bubble.textContent += ev.text; scroll();
+    const sp = document.createElement("span"); sp.className = "tk"; sp.textContent = ev.text;
+    bubble.appendChild(sp); scroll();
   } else if (ev.type === "text") {
     clearThinking();
-    if (bubble) bubble.classList.remove("typing");
+    if (!bubble) bubble = addMsg("bot", "");
+    bubble.classList.remove("typing");
+    if (bubble.textContent.trim() !== ev.text.trim()) bubble.textContent = ev.text;
     bubble = null; speak(ev.text); save();
   } else if (ev.type === "call") {
     clearThinking();
@@ -437,7 +526,7 @@ async function stream(path, body) {
   } finally {
     clearThinking();
     if (bubble) bubble.classList.remove("typing");
-    bubble = null; setBusy(false); save();
+    bubble = null; setBusy(false); save(); syncTurns();
     if (!pendingCard) input.focus();
   }
 }
@@ -455,25 +544,117 @@ function send(text) {
   stream("/api/chat", { text });
 }
 
-// ---------- histórico da tela (só enquanto o mesmo servidor estiver rodando)
-const LOG_KEY = "lia-log2-" + TOKEN.slice(0, 12);
-function save() {
-  if ($("empty")) return store.del(LOG_KEY);
-  const clone = log.cloneNode(true);
-  clone.querySelectorAll(".actions, .tool.wait .st, .tool.ask .st, .dots").forEach((e) => e.closest(".dots") ? e.closest(".row").remove() : e.remove());
-  clone.querySelectorAll(".typing").forEach((e) => e.classList.remove("typing"));
-  store.set(LOG_KEY, clone.innerHTML);
+// ---------- histórico de conversas (salvo neste computador)
+const CHATS_KEY = "lia-chats", CUR_KEY = "lia-atual";
+let chats = [];
+try { chats = JSON.parse(store.get(CHATS_KEY) || "[]"); } catch (e) { chats = []; }
+function newId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+let currentId = store.get(CUR_KEY) || newId();
+let shownIds = new Set(chats.map((c) => c.id));
+const current = () => chats.find((c) => c.id === currentId);
+function persist() {
+  chats.sort((a, b) => b.updated - a.updated);
+  while (!store.set(CHATS_KEY, JSON.stringify(chats)) && chats.length > 1) chats.pop();  // sem espaço: some a mais antiga
+  store.set(CUR_KEY, currentId);
 }
-function restore() {
-  try { for (let i = localStorage.length - 1; i >= 0; i--) { const k = localStorage.key(i); if (k.startsWith("lia-log") && k !== LOG_KEY) localStorage.removeItem(k); } } catch (e) {}
-  const html = store.get(LOG_KEY);
-  if (!html) return showEmpty();
-  log.innerHTML = html; log.classList.add("restored");
-  lastRole = log.lastElementChild?.classList.contains("user") ? "user" : "bot";
+function snapshot() {
+  const clone = log.cloneNode(true);
+  clone.querySelectorAll(".row.thinking").forEach((e) => e.remove());
+  clone.querySelectorAll(".actions, .tool.wait .st, .tool.ask .st").forEach((e) => e.remove());
+  clone.querySelectorAll(".typing").forEach((e) => e.classList.remove("typing"));
+  clone.querySelectorAll(".msg").forEach((m) => { if (m.querySelector(".tk")) m.textContent = m.textContent; });
+  return clone.innerHTML;
+}
+function save() {
+  if ($("empty") || !log.querySelector(".row.user")) return;
+  let c = current();
+  if (!c) { c = { id: currentId, title: "", turns: [] }; chats.unshift(c); }
+  c.html = snapshot(); c.updated = Date.now();
+  if (!c.title) c.title = (log.querySelector(".row.user .msg")?.textContent || "Conversa").slice(0, 60);
+  persist(); renderHistory();
+}
+let syncing = Promise.resolve();
+function syncTurns() {  // guarda o contexto do modelo junto da conversa (para reabrir depois)
+  const c = current();
+  if (!c) return;
+  syncing = (async () => {
+    try { c.turns = (await (await api("/api/turns")).json()).turns; persist(); } catch (e) {}
+  })();
+}
+function groupOf(t) {
+  const d = new Date(t), today = new Date(); today.setHours(0, 0, 0, 0);
+  const diff = Math.round((today - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 864e5);
+  return diff <= 0 ? "Hoje" : diff === 1 ? "Ontem" : diff < 7 ? "Últimos 7 dias" : "Mais antigas";
+}
+function renderHistory() {
+  const box = $("chatlist"); box.innerHTML = "";
+  if (!chats.length) { box.innerHTML = '<div class="hist-empty">Suas conversas aparecem aqui.</div>'; return; }
+  let group = null;
+  for (const c of chats) {
+    const g = groupOf(c.updated);
+    if (g !== group) { const h = document.createElement("h5"); h.textContent = group = g; box.appendChild(h); }
+    const b = document.createElement("button");
+    b.className = "chat-item" + (c.id === currentId ? " on" : "") + (shownIds.has(c.id) ? "" : " new");
+    b.title = c.title;
+    b.innerHTML = `<span></span><span class="del" role="button" tabindex="0" aria-label="Apagar conversa" title="Apagar">${ICON("trash")}</span>`;
+    b.firstChild.textContent = c.title;
+    b.onclick = (e) => { if (e.target.closest(".del")) deleteChat(c.id); else openChat(c.id); };
+    box.appendChild(b);
+    shownIds.add(c.id);
+  }
+}
+function showChat(c) {
+  log.innerHTML = c.html || ""; log.classList.add("restored");
+  log.classList.remove("swap"); void log.offsetWidth; log.classList.add("swap");
+  const last = log.lastElementChild?.classList;
+  lastRole = last?.contains("user") ? "user" : last ? "bot" : null;
   requestAnimationFrame(scroll);
 }
+async function openChat(id) {
+  if (busy || id === currentId) return closeHistoryIfOverlay();
+  const c = chats.find((x) => x.id === id);
+  if (!c) return;
+  await syncing;
+  currentId = id; pendingCard = null; store.set(CUR_KEY, id);
+  showChat(c); renderHistory(); closeHistoryIfOverlay();
+  try { await api("/api/load", { turns: c.turns || [] }); } catch (e) {}
+  input.focus();
+}
+async function newChat() {
+  if (busy) return;
+  await syncing;
+  try { await api("/api/reset", {}); } catch (e) {}
+  currentId = newId(); pendingCard = null; store.set(CUR_KEY, currentId);
+  showEmpty(); renderHistory(); closeHistoryIfOverlay(); input.focus();
+}
+function deleteChat(id) {
+  const c = chats.find((x) => x.id === id);
+  if (!c || !confirm(`Apagar a conversa "${c.title}"?`)) return;
+  chats = chats.filter((x) => x.id !== id); persist();
+  if (id === currentId) newChat(); else renderHistory();
+}
+$("clearall").onclick = () => {
+  if (!chats.length || !confirm("Apagar todas as conversas salvas?")) return;
+  chats = []; persist(); newChat();
+};
 
-// ---------- ajustes
+// painel de conversas: fixo ao lado em tela larga, por cima em tela estreita
+const narrow = () => matchMedia("(max-width: 900px)").matches;
+function toggleHistory(open) {
+  if (narrow()) {
+    document.body.classList.toggle("hist-open", open);
+  } else {
+    document.body.classList.toggle("hist-closed", !open);
+    store.set("lia-painel", open ? "1" : "0");
+  }
+}
+const historyOpen = () => narrow() ? document.body.classList.contains("hist-open") : !document.body.classList.contains("hist-closed");
+function closeHistoryIfOverlay() { if (narrow()) document.body.classList.remove("hist-open"); }
+$("histbtn").onclick = () => toggleHistory(!historyOpen());
+$("histclose").onclick = () => toggleHistory(false);
+if (store.get("lia-painel") === "0") document.body.classList.add("hist-closed");
+
+// ---------- configurações
 function openSettings(open) { $("settings").classList.toggle("open", open); $("shade").classList.toggle("open", open); }
 $("gear").onclick = () => openSettings(!$("settings").classList.contains("open"));
 $("close").onclick = $("shade").onclick = () => openSettings(false);
@@ -489,20 +670,17 @@ $("notif").onchange = async () => {
   }
   store.set("notif", $("notif").checked ? "1" : "0");
 };
-function applyTheme(v) {
-  if (v === "auto") document.documentElement.removeAttribute("data-theme");
-  else document.documentElement.setAttribute("data-theme", v);
+function applyTheme(v, animate) {
+  const root = document.documentElement;
+  if (animate) { root.classList.add("theming"); setTimeout(() => root.classList.remove("theming"), 350); }
+  if (v === "auto") root.removeAttribute("data-theme"); else root.setAttribute("data-theme", v);
   document.querySelectorAll("#theme button").forEach((b) => b.classList.toggle("on", b.dataset.v === v));
   store.set("tema", v);
 }
-document.querySelectorAll("#theme button").forEach((b) => b.onclick = () => applyTheme(b.dataset.v));
+document.querySelectorAll("#theme button").forEach((b) => b.onclick = () => applyTheme(b.dataset.v, true));
 applyTheme(store.get("tema") || "auto");
 
-$("newchat").onclick = async () => {
-  if (busy) return;
-  try { await api("/api/reset", {}); } catch (e) {}
-  pendingCard = null; store.del(LOG_KEY); showEmpty(); input.focus();
-};
+$("newchat").onclick = $("newchat2").onclick = newChat;
 
 // ---------- teclado
 $("form").onsubmit = (e) => { e.preventDefault(); send(input.value); };
@@ -517,21 +695,21 @@ input.addEventListener("input", () => {
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     if ($("settings").classList.contains("open")) openSettings(false);
+    else if (narrow() && historyOpen()) toggleHistory(false);
     else if (pendingCard && !busy) pendingCard._answer(false);
-  } else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "o") { e.preventDefault(); $("newchat").click(); }
+  } else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "o") { e.preventDefault(); newChat(); }
+  else if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === "b") { e.preventDefault(); toggleHistory(!historyOpen()); }
 });
 
 // ---------- conexão e informações
-let online = false;
 function setOnline(on, text) {
   online = on;
-  $("dot").className = "dot " + (busy ? "busy" : on ? "on" : "");
   if (text) $("status").textContent = text;
 }
 async function loadInfo() {
   try {
     const info = await (await api("/api/info")).json();
-    setOnline(true, `online · ${(info.params / 1e6).toFixed(1)}M parâmetros · ${info.apps} apps` + (info.simulado ? " · modo simulado" : ""));
+    setOnline(true, `${(info.params / 1e6).toFixed(1)}M parâmetros · ${info.apps} apps` + (info.simulado ? " · modo simulado" : ""));
     $("auto").checked = info.auto;
     $("temp").value = info.temperature; $("tempval").textContent = info.temperature;
     $("toollist").innerHTML = "";
@@ -543,7 +721,7 @@ async function loadInfo() {
       if (t.confirm) li.children[1].insertAdjacentHTML("beforeend", '<span class="tag">pede confirmação</span>');
       $("toollist").appendChild(li);
     }
-  } catch (e) { setOnline(false, "offline · o servidor não respondeu"); }
+  } catch (e) { setOnline(false, "sem conexão com o servidor"); }
 }
 
 // Lembretes que disparam enquanto a página está aberta
@@ -562,11 +740,21 @@ setInterval(async () => {
     const evs = await (await api("/api/events")).json();
     if (!online) loadInfo();
     for (const ev of evs) notifyReminder(ev.text);
-  } catch (e) { if (online) setOnline(false, "offline · o servidor não respondeu"); }
+  } catch (e) { if (online) setOnline(false, "sem conexão com o servidor"); }
 }, 4000);
 
-restore();
-loadInfo();
+// ---------- início: reabre a última conversa (e o contexto dela no modelo)
+(async () => {
+  const c = current();
+  if (c?.html) {
+    showChat(c);
+    try { await api("/api/load", { turns: c.turns || [] }); } catch (e) {}
+  } else {
+    showEmpty();
+  }
+  renderHistory();
+  loadInfo();
+})();
 </script>
 </body>
 </html>

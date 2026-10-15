@@ -103,6 +103,10 @@ class Handler(BaseHTTPRequestHandler):
                         "temperature": BOT.temperature, "apps": len(tools.APPS.apps or []),
                         "simulado": tools.DRY_RUN,
                         "tools": [{"name": t.name, "desc": t.desc, "confirm": t.confirm} for t in tools.TOOLS.values()]})
+        elif self.path == "/api/turns" and self._allowed():
+            with LOCK:
+                turns = [{"role": r, "text": t} for r, t, _ in BOT.turns]
+            self._json({"turns": turns})
         elif self.path == "/api/events" and self._allowed():
             with EVENTS_LOCK:
                 out, EVENTS[:] = list(EVENTS), []
@@ -115,7 +119,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"erro": "proibido"}, 403)
         try:
             n = int(self.headers.get("Content-Length", 0))
-            data = json.loads(self.rfile.read(n) or b"{}") if n < 100_000 else {}
+            data = json.loads(self.rfile.read(n) or b"{}") if n < 1_000_000 else {}
         except ValueError:
             return self._json({"erro": "json inválido"}, 400)
         if self.path == "/api/chat":
@@ -130,6 +134,19 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/api/reset":
             with LOCK:
                 BOT.reset()
+            self._json({"ok": True})
+        elif self.path == "/api/load":
+            # Reabre uma conversa salva no histórico: refaz o contexto do modelo com as falas dela.
+            # Só vira contexto; nenhuma ferramenta é executada aqui.
+            turns = data.get("turns") if isinstance(data.get("turns"), list) else []
+            with LOCK:
+                BOT.reset()
+                for t in turns[-200:]:
+                    role, text = (t or {}).get("role"), str((t or {}).get("text", ""))[:2000]
+                    if role in ("user", "assistant", "call", "result"):
+                        BOT.turns.append((role, text, BOT.tok.encode_turn(role, text)[0]))
+                if BOT.turns and BOT.turns[-1][0] == "call":  # confirmação que ficou pendente: descarta
+                    BOT.turns.pop()
             self._json({"ok": True})
         elif self.path == "/api/settings":
             if "auto" in data:
