@@ -121,6 +121,12 @@
   @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); opacity: .45; } 30% { transform: translateY(-4px); opacity: 1; } }
   .time { font-size: 11px; color: var(--muted); opacity: 0; transition: opacity .15s; align-self: center; flex: none; }
   .row:hover .time { opacity: 1; }
+  .fb { font: inherit; font-size: 11px; color: var(--muted); background: none; border: 1px solid transparent; border-radius: 8px;
+        padding: 1px 7px; cursor: pointer; opacity: 0; transition: opacity .15s, border-color .15s, color .15s; align-self: flex-end; }
+  .row:hover .fb { opacity: 1; }
+  .fb:hover { border-color: var(--line); color: var(--ink); }
+  .fb.done { opacity: 1; color: var(--warn); cursor: default; }
+  @media (hover: none) { .fb { opacity: .7; } }
 
   /* ferramenta: uma linha compacta (ícone, ação, argumento, resultado, status) */
   .tool { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; max-width: min(78%, 620px);
@@ -447,9 +453,28 @@ function addMsg(role, text, extra) {
   const m = document.createElement("div");
   m.className = "msg" + (extra ? " " + extra : ""); m.textContent = text || "";
   const t = document.createElement("span"); t.className = "time"; t.textContent = now();
-  if (role === "user") r.append(t, m); else r.append(m, t);
+  if (role === "user") r.append(t, m);
+  else if (extra === "alert") r.append(m, t);
+  else {  // "errou?": guarda a conversa para revisar e virar exemplo de treino
+    const fb = document.createElement("button");
+    fb.className = "fb"; fb.textContent = "errou?"; fb.title = "Marcar esta resposta como errada (guarda para o próximo treino)";
+    r.append(m, t, fb);
+  }
   scroll(); save(); return m;
 }
+// um ouvinte só, para valer também nas conversas reabertas do histórico
+log.addEventListener("click", async (e) => {
+  const fb = e.target.closest(".fb");
+  if (!fb || fb.classList.contains("done")) return;
+  try {
+    await api("/api/feedback", {});
+    fb.classList.add("done"); fb.textContent = "marcado"; save();
+    snack("Guardei essa conversa pra revisar no próximo treino.", async () => {
+      await api("/api/feedback", { undo: true });
+      fb.classList.remove("done"); fb.textContent = "errou?"; save();
+    });
+  } catch (err) { snack("Não consegui guardar agora.", () => {}); }
+});
 function showThinking() {
   const r = row("bot");
   r.classList.add("thinking");

@@ -15,6 +15,7 @@ import json
 import secrets
 import sys
 import threading
+import time
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -23,6 +24,9 @@ import tools
 from agent import Assistant
 
 PAGE = Path(__file__).resolve().parent / "web" / "index.html"
+# Conversas marcadas como "errou?": ficam para revisão. NÃO vão direto pro treino (a resposta errada
+# está nelas); depois de corrigidas, viram exemplos em data/conversas/.
+FEEDBACK = Path(__file__).resolve().parent / "data" / "feedback" / "erros.jsonl"
 TOKEN = secrets.token_urlsafe(24)
 LOCK = threading.Lock()
 STATE = {"auto": False}
@@ -148,6 +152,18 @@ class Handler(BaseHTTPRequestHandler):
                 if BOT.turns and BOT.turns[-1][0] == "call":  # confirmação que ficou pendente: descarta
                     BOT.turns.pop()
             self._json({"ok": True})
+        elif self.path == "/api/feedback":
+            FEEDBACK.parent.mkdir(parents=True, exist_ok=True)
+            lines = FEEDBACK.read_text(encoding="utf-8").splitlines() if FEEDBACK.exists() else []
+            if data.get("undo"):
+                lines = lines[:-1]
+            else:
+                with LOCK:
+                    msgs = [{"role": r, "content": t} for r, t, _ in BOT.turns]
+                lines.append(json.dumps({"quando": time.strftime("%Y-%m-%d %H:%M"), "messages": msgs},
+                                        ensure_ascii=False))
+            FEEDBACK.write_text("".join(line + "\n" for line in lines), encoding="utf-8")
+            self._json({"ok": True, "total": len(lines)})
         elif self.path == "/api/settings":
             if "auto" in data:
                 STATE["auto"] = bool(data["auto"])

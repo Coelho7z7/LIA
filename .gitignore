@@ -12,3 +12,13 @@ data/conversas/sinteticas.jsonl
 venv/
 __pycache__/
 *.pyc
+
+# Conversas marcadas como "errou?" na interface (dados pessoais, revisar antes de treinar)
+data/feedback/
+
+# Pastas de experimentos e dados gerados (grandes; o treino recria)
+out_*/
+data_v*/
+
+# Configuração local do Claude Code
+.claude/

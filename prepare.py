@@ -15,6 +15,7 @@ import json
 import random
 import sys
 import time
+from array import array
 from pathlib import Path
 
 import numpy as np
@@ -52,6 +53,9 @@ def main():
     ap.add_argument("--vocab", type=int, default=4096)
     ap.add_argument("--val-frac", type=float, default=0.03)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--bpe-dropout", type=float, default=0.0,
+                    help="chance de pular cada fusão do BPE no treino (ex.: 0.1); ensina os pedaços raros")
+    ap.add_argument("--dropout-frac", type=float, default=0.6, help="fração das conversas de treino com dropout")
     args = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
     out = Path(args.out)
@@ -88,21 +92,25 @@ def main():
     if convs:
         random.Random(args.seed).shuffle(convs)
         n_val = max(int(len(convs) * args.val_frac), min(50, len(convs) // 5))
+        rng = random.Random(args.seed + 1)
         for split, part in (("train", convs[n_val:]), ("val", convs[:n_val])):
-            ids, mask, starts = [], [], []
+            ids, mask, starts = array("H"), array("B"), []  # arrays compactos: cabe milhões de conversas na RAM
             for c in part:
-                i, m = tok.encode_chat(c)
+                drop = args.bpe_dropout if split == "train" and rng.random() < args.dropout_frac else 0.0
+                i, m = tok.encode_chat(c, drop, rng)
                 starts.append(len(ids))
-                ids += i
-                mask += m
-            np.array(ids, dtype=np.uint16).tofile(out / f"sft_{split}.bin")
-            np.array(mask, dtype=np.uint8).tofile(out / f"sft_{split}_mask.bin")
+                ids.extend(i)
+                mask.extend(m)
+            np.frombuffer(ids, dtype=np.uint16).tofile(out / f"sft_{split}.bin")
+            np.frombuffer(mask, dtype=np.uint8).tofile(out / f"sft_{split}_mask.bin")
             np.save(out / f"sft_{split}_starts.npy", np.array(starts, dtype=np.int64))
             meta[f"sft_{split}_tokens"] = len(ids)
             meta[f"sft_{split}_convs"] = len(part)
         lens = [len(tok.encode_chat(c)[0]) for c in convs[:2000]]
         print(f"Chat: {meta['sft_train_tokens']:,} tokens de treino, {meta['sft_val_tokens']:,} de validação "
               f"(conversa média {np.mean(lens):.0f} tokens, máx {max(lens)})")
+        seen = np.bincount(np.fromfile(out / "sft_train.bin", dtype=np.uint16), minlength=tok.vocab_size)
+        print(f"Tokens do vocabulário que nunca aparecem no treino: {(seen == 0).sum()} de {tok.vocab_size}")
 
     (out / "meta.json").write_text(json.dumps(meta, indent=2))
     print(f"Pronto. Tudo em {out}/")

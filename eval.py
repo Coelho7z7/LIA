@@ -27,14 +27,15 @@ from tokenizer import BPETokenizer
 def predict(model, tok, user_text):
     """Primeira fala do assistente: ("call", "nome: arg") ou ("assistant", None)."""
     ids = [tok.bos] + tok.encode_turn("user", user_text)[0] + [tok.assistant]
+    dev = model.tok_emb.weight.device
     cache = model.new_cache()
-    logits, _ = model(torch.tensor([ids]), cache=cache)
+    logits, _ = model(torch.tensor([ids], device=dev), cache=cache)
     logits = logits[0, -1]
     if int(logits.argmax()) != tok.call:
         return "assistant", None
     gen, t = [], tok.call
     for _ in range(48):
-        logits, _ = model(torch.tensor([[t]]), cache=cache)
+        logits, _ = model(torch.tensor([[t]], device=dev), cache=cache)
         t = int(logits[0, -1].argmax())
         if t == tok.end:
             break
@@ -80,6 +81,7 @@ def main():
     tok = BPETokenizer.from_dict(ckpt["tokenizer"])
     model = GPT(GPTConfig(**ckpt["config"])).eval()
     model.load_state_dict(ckpt["model"])
+    model.to("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Modelo: {args.ckpt} (passo {ckpt['iter']}, val loss {ckpt['best_val']:.3f})\n")
 
     stats = defaultdict(lambda: [0, 0, 0, 0])  # total, rota, ferramenta, argumento

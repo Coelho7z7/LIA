@@ -59,6 +59,8 @@ def main():
     ap.add_argument("--log-interval", type=int, default=25)
     ap.add_argument("--compile", action="store_true", help="torch.compile (precisa de compilador C++)")
     ap.add_argument("--seed", type=int, default=1337)
+    ap.add_argument("--save-last", action="store_true",
+                    help="grava o checkpoint do fim mesmo se o val não melhorou (ex.: dados com BPE-dropout)")
     args = ap.parse_args()
 
     sys.stdout.reconfigure(encoding="utf-8")
@@ -209,6 +211,9 @@ def main():
                     best_val = losses["val"]
                     save(it)
                     print(f"  checkpoint salvo em {ckpt_path}")
+                elif last and args.save_last:
+                    save(it)
+                    print(f"  checkpoint do fim salvo em {ckpt_path} (val não melhorou)")
                 show_samples()
                 print()
                 t_last, steps_since = time.time(), 0

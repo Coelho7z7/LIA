@@ -24,7 +24,12 @@ Para treinar de novo do começo (gera dados, tokeniza, treina e avalia):
 & $py treinar.py --nome Lia --minutos-chat 90
 ```
 
-Em outro computador: `python -m venv .venv`, `pip install -r requirements.txt`.
+Em outro computador: `python -m venv .venv`, `pip install -r requirements.txt` e baixe o
+modelo pronto (não precisa treinar):
+
+```powershell
+gh release download treino-v7 --repo Coelho7z7/mini-gpt --dir out
+```
 
 ## O que ela sabe fazer
 
@@ -38,7 +43,7 @@ Em outro computador: `python -m venv .venv`, `pip install -r requirements.txt`.
 | "bloqueia o pc" | `bloquear` | sim |
 | "que horas são?", "que dia é hoje?" | `hora`, `data` | não |
 | "quanto é 15% de 200?", "raiz de 144" | `calcular` (seguro, sem `eval`) | não |
-| "me lembra de tirar a pizza em 10 minutos", "timer de meia hora" | `lembrete` (alerta na tela) | não |
+| "me lembra de tirar a pizza em 10 minutos", "timer de meia hora" | `lembrete` (notificação do Windows com "Adiar" e "Ok") | não |
 | "anota aí: comprar leite", "lê minhas notas" | `anotar`, `ver_notas` | não |
 | "meu nome é Ana", "qual é meu nome?" | `lembrar`, `recordar` | não |
 | "aumenta o volume", "próxima música" | `volume`, `midia` | não |
@@ -99,7 +104,50 @@ você digita ──► tokenizador BPE ──► Transformer (KV cache) ──�
   coisas. O que você digita nunca vira token especial, ou seja, digitar `<|call|>`
   não finge uma chamada de ferramenta.
 
+## Treino na GPU (a receita do modelo atual)
+
+O modelo em `out/` (release `treino-v7`) tem ~28 milhões de parâmetros e foi treinado
+do zero numa RTX 3050 6 GB em ~3h40. Para refazer (em pastas separadas, sem mexer no
+`out/`):
+
+```powershell
+.venv\Scripts\python make_dialogues.py --n 1200000 --foco-copia 2 --out data_v8/conversas/sinteticas.jsonl
+.venv\Scripts\python prepare.py --conversas data_v8/conversas --textos data_v8/textos --out out_v8 --bpe-dropout 0.1
+.venv\Scripts\python train.py --stage sft --data out_v8 --out out_v8 --preset medium --batch-size 32 --max-iters 22000 --save-last
+.venv\Scripts\python eval.py --ckpt out_v8/chat.pt
+```
+
+(`make_dialogues.py` em vários processos com `--seed` diferentes e `--out` diferentes
+na mesma pasta gera bem mais rápido; o `prepare.py` lê todos os `.jsonl` dela.)
+
+Evolução no `eval.py` (mesmos 920 casos nunca vistos):
+
+| modelo | rota | ferramenta | argumento | fidelidade |
+|---|---|---|---|---|
+| small, 60k conversas, CPU (`treino-v3`) | 95% | 86% | 65% | 96% |
+| medium, 400k conversas, 1h GPU | 96% | 87% | 67% | 96% |
+| + BPE-dropout + moldes só de treino, 600k, 2h | 99% | 94% | 87% | 99% |
+| + 1,2M conversas, 22 mil passos | 99% | 97% | 89% | 99% |
+| + conversa pura (negativos), `treino-v7` | 99% | 97% | 90% | 99% |
+
+O que mais fez diferença:
+
+- **BPE-dropout** (`--bpe-dropout`). Um BPE normal cria pedaços "intermediários" que
+  quase nunca aparecem nos dados: ~18% do vocabulário ficava sem treino, e palavras
+  novas caem justamente neles ("pagode" virava "pagAdmin"). Pulando fusões ao acaso no
+  treino, o modelo vê e aprende todos os pedaços. Copiar tokens raros foi de 3% para 86%.
+- **Moldes extras só de treino** (`TRAIN_ONLY` em `make_dialogues.py`): mais jeitos de
+  pedir a mesma coisa, sem tocar nos casos do teste (o `eval.py` continua idêntico).
+- **Conversa pura** (`SMALLTALK_TRAIN`): frases que parecem pedido mas são papo
+  ("perdi o sono", "essa música é boa"). Sem elas, a IA mutava o volume quando você
+  dizia que perdeu o sono.
+- Mais dados ajudam, mas sozinhos quase nada: o ganho veio de *quais* dados.
+
 ## Deixando ela melhor
+
+0. **Marque os erros dela.** Na interface, passe o mouse numa resposta e clique em
+   **errou?**: a conversa vai para `data/feedback/erros.jsonl` (fora do git e fora do
+   treino). Depois corrija a resposta e mova o exemplo certo para `data/conversas/`.
 
 1. **Escreva conversas suas** em `data/conversas/minhas.jsonl` (uma por linha):
 
@@ -123,7 +171,7 @@ você digita ──► tokenizador BPE ──► Transformer (KV cache) ──�
 
 ## Limites (sendo sincero)
 
-- Com ~7 milhões de parâmetros treinados numa CPU, ela é ótima em **pedidos
+- Com ~28 milhões de parâmetros treinados numa placa de vídeo de entrada, ela é ótima em **pedidos
   práticos** e **conversa curta** no tom da personalidade. Não espere raciocínio,
   conhecimento geral ou textos longos coerentes: para isso seriam bilhões de
   parâmetros e muitos dados.

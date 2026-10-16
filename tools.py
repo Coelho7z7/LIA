@@ -468,6 +468,121 @@ def formatar_duracao(sec):
     return " e ".join(parts)
 
 
+TOAST_APP_ID = "Lia.Assistente"
+LOGO_PNG = Path(__file__).resolve().parent / "web" / "logo.png"
+LOGO_ICO = Path(__file__).resolve().parent / "web" / "logo.ico"
+
+# O Windows só mostra notificação de programa de desktop que tenha um atalho no Menu Iniciar
+# com o mesmo AppUserModelID. Este script cria o atalho "Lia" (que abre a interface).
+# Tudo entra por variável de ambiente; o C# só existe porque o PowerShell não grava o ID no .lnk.
+_SHORTCUT_PS = r"""
+Add-Type -TypeDefinition @'
+using System; using System.Text; using System.Runtime.InteropServices;
+[ComImport, Guid("00021401-0000-0000-C000-000000000046")] class CShellLink {}
+[ComImport, InterfaceType(ComInterfaceType.InterfaceIsIUnknown), Guid("000214F9-0000-0000-C000-000000000046")]
+interface IShellLinkW {
+  void GetPath([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder f, int c, IntPtr fd, uint fl);
+  void GetIDList(out IntPtr p); void SetIDList(IntPtr p);
+  void GetDescription([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder s, int c);
+  void SetDescription([MarshalAs(UnmanagedType.LPWStr)] string s);
+  void GetWorkingDirectory([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder s, int c);
+  void SetWorkingDirectory([MarshalAs(UnmanagedType.LPWStr)] string s);
+  void GetArguments([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder s, int c);
+  void SetArguments([MarshalAs(UnmanagedType.LPWStr)] string s);
+  void GetHotkey(out short h); void SetHotkey(short h);
+  void GetShowCmd(out int i); void SetShowCmd(int i);
+  void GetIconLocation([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder s, int c, out int i);
+  void SetIconLocation([MarshalAs(UnmanagedType.LPWStr)] string s, int i);
+  void SetRelativePath([MarshalAs(UnmanagedType.LPWStr)] string s, uint r);
+  void Resolve(IntPtr h, uint f);
+  void SetPath([MarshalAs(UnmanagedType.LPWStr)] string s);
+}
+[StructLayout(LayoutKind.Sequential, Pack = 4)] public struct PropertyKey { public Guid fmtid; public uint pid; }
+[StructLayout(LayoutKind.Explicit, Size = 24)] public struct PropVariant { [FieldOffset(0)] public ushort vt; [FieldOffset(8)] public IntPtr p; }
+[ComImport, InterfaceType(ComInterfaceType.InterfaceIsIUnknown), Guid("886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99")]
+interface IPropertyStore {
+  void GetCount(out uint c); void GetAt(uint i, out PropertyKey k);
+  void GetValue(ref PropertyKey k, out PropVariant v); void SetValue(ref PropertyKey k, ref PropVariant v); void Commit();
+}
+[ComImport, InterfaceType(ComInterfaceType.InterfaceIsIUnknown), Guid("0000010b-0000-0000-C000-000000000046")]
+interface IPersistFile {
+  void GetClassID(out Guid g); [PreserveSig] int IsDirty();
+  void Load([MarshalAs(UnmanagedType.LPWStr)] string f, uint m);
+  void Save([MarshalAs(UnmanagedType.LPWStr)] string f, bool r);
+}
+public static class LiaShortcut {
+  public static void Create(string lnk, string target, string args, string dir, string icon, string aumid) {
+    var link = (IShellLinkW)new CShellLink();
+    link.SetPath(target); link.SetArguments(args); link.SetWorkingDirectory(dir);
+    link.SetIconLocation(icon, 0); link.SetDescription("Lia");
+    var store = (IPropertyStore)link;
+    var key = new PropertyKey { fmtid = new Guid("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3"), pid = 5 };  // System.AppUserModel.ID
+    var pv = new PropVariant { vt = 31, p = Marshal.StringToCoTaskMemUni(aumid) };  // VT_LPWSTR
+    try { store.SetValue(ref key, ref pv); store.Commit(); ((IPersistFile)link).Save(lnk, true); }
+    finally { Marshal.FreeCoTaskMem(pv.p); }
+  }
+}
+'@
+[LiaShortcut]::Create($env:LIA_LNK, $env:LIA_TARGET, $env:LIA_ARGS, $env:LIA_DIR, $env:LIA_ICON, $env:LIA_TOAST_APP)
+"""
+
+
+def _ensure_shortcut():
+    """Cria (uma vez) o atalho "Lia" no Menu Iniciar do usuário, necessário para as notificações."""
+    lnk = Path(os.environ["APPDATA"]) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Lia.lnk"
+    if lnk.exists():
+        return
+    root = Path(__file__).resolve().parent
+    pythonw = Path(sys.executable).with_name("pythonw.exe")
+    env = dict(os.environ, LIA_LNK=str(lnk), LIA_TARGET=str(pythonw if pythonw.exists() else sys.executable),
+               LIA_ARGS="web.py", LIA_DIR=str(root), LIA_ICON=str(LOGO_ICO), LIA_TOAST_APP=TOAST_APP_ID)
+    subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", _SHORTCUT_PS], env=env,
+                   capture_output=True, timeout=60, creationflags=subprocess.CREATE_NO_WINDOW)
+
+# Mostra a notificação pela API do Windows (WinRT) via PowerShell, sem instalar nada.
+# O XML vai por variável de ambiente: o texto do lembrete nunca entra no comando.
+_TOAST_PS = r"""
+[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
+[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom, ContentType = WindowsRuntime] | Out-Null
+$xml = New-Object Windows.Data.Xml.Dom.XmlDocument
+$xml.LoadXml($env:LIA_TOAST_XML)
+[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($env:LIA_TOAST_APP).Show(
+    [Windows.UI.Notifications.ToastNotification]::new($xml))
+"""
+
+
+def _toast(titulo, texto):
+    """
+    Notificação nativa do Windows com nome "Lia" e logo. scenario="alarm" deixa ela na tela
+    até você fechar e passa pelo "Não incomodar" (que só deixa passar alarmes); "Adiar" e "Ok"
+    são tratados pelo próprio Windows.
+    """
+    import winreg
+    from xml.sax.saxutils import escape, quoteattr
+
+    # Identidade da notificação: atalho no Menu Iniciar + nome/ícone no registro do usuário (sem admin)
+    _ensure_shortcut()
+    with winreg.CreateKey(winreg.HKEY_CURRENT_USER, rf"Software\Classes\AppUserModelId\{TOAST_APP_ID}") as k:
+        winreg.SetValueEx(k, "DisplayName", 0, winreg.REG_SZ, "Lia")
+        if LOGO_PNG.exists():
+            winreg.SetValueEx(k, "IconUri", 0, winreg.REG_SZ, str(LOGO_PNG))
+    logo = f"<image placement=\"appLogoOverride\" src={quoteattr(LOGO_PNG.as_uri())}/>" if LOGO_PNG.exists() else ""
+    xml = ("<toast scenario=\"alarm\">"
+           "<visual><binding template=\"ToastGeneric\">"
+           f"<text>{escape(titulo)}</text><text>{escape(texto)}</text>{logo}"
+           "</binding></visual>"
+           "<actions><input id=\"adiar\" type=\"selection\" defaultInput=\"5\">"
+           "<selection id=\"5\" content=\"5 minutos\"/><selection id=\"10\" content=\"10 minutos\"/>"
+           "<selection id=\"30\" content=\"30 minutos\"/><selection id=\"60\" content=\"1 hora\"/></input>"
+           "<action activationType=\"system\" arguments=\"snooze\" hint-inputId=\"adiar\" content=\"Adiar\"/>"
+           "<action activationType=\"system\" arguments=\"dismiss\" content=\"Ok\"/></actions>"
+           "<audio src=\"ms-winsoundevent:Notification.Reminder\" loop=\"false\"/></toast>")
+    env = dict(os.environ, LIA_TOAST_XML=xml, LIA_TOAST_APP=TOAST_APP_ID)
+    r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", _TOAST_PS], env=env,
+                       capture_output=True, timeout=30, creationflags=subprocess.CREATE_NO_WINDOW)
+    return r.returncode == 0 and not r.stderr.strip()
+
+
 def _fire_reminder(texto):
     for cb in list(REMINDER_LISTENERS):
         try:
@@ -475,6 +590,12 @@ def _fire_reminder(texto):
         except Exception:
             pass
     if WINDOWS and not DRY_RUN:
+        try:
+            if _toast("Lembrete", texto):
+                return
+        except Exception:
+            pass
+        # Plano B: a caixinha simples de sempre
         import ctypes
         import winsound
         winsound.MessageBeep(winsound.MB_ICONASTERISK)

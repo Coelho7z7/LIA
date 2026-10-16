@@ -131,7 +131,7 @@ def test_agent():
     prompt = bot._context() + [bot.tok.assistant]
     with torch.no_grad():
         cached = bot._prefill(prompt)
-        full = bot.model(torch.tensor([prompt]))[0][0, -1]
+        full = bot.model(torch.tensor([prompt], device=bot.device))[0][0, -1]
     err = (cached - full).abs().max().item()
     check("cache do agente = conversa relida do zero", f"{err:.1e}", err < 1e-4)
     bot.max_reply_tokens = 200

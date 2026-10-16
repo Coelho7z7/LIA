@@ -130,35 +130,52 @@ class BPETokenizer:
         self._cache = {}
 
     # --------------------------------------------------------------- encode
-    def _encode_chunk(self, data):
+    def _encode_chunk(self, data, dropout=0.0, rng=None):
         ids = list(data)
         while len(ids) >= 2:
+            pairs = set(zip(ids, ids[1:]))
+            if dropout:  # BPE-dropout: cada fusão possível pode ser pulada nesta rodada
+                pairs = [p for p in pairs if p in self.merges and rng.random() >= dropout]
+                if not pairs:
+                    break
             # O par com a regra aprendida mais cedo é aplicado primeiro.
-            pair = min(set(zip(ids, ids[1:])), key=lambda p: self.merges.get(p, float("inf")))
+            pair = min(pairs, key=lambda p: self.merges.get(p, float("inf")))
             if pair not in self.merges:
                 break
             ids = merge(ids, pair, self.merges[pair])
         return ids
 
-    def encode(self, text):
-        """Texto comum -> ids. Nunca produz tokens especiais."""
+    def encode(self, text, dropout=0.0, rng=None, seg=None):
+        """
+        Texto comum -> ids. Nunca produz tokens especiais.
+        dropout > 0 (só no treino): quebra as palavras de jeitos variados, para o modelo
+        ver e aprender também os pedaços pequenos (BPE-dropout). `seg` guarda a quebra
+        escolhida para cada palavra, assim ela sai igual em toda a conversa.
+        """
         out = []
         for chunk in SPLIT_PATTERN.findall(text):
-            ids = self._cache.get(chunk)
-            if ids is None:
-                ids = self._encode_chunk(chunk.encode("utf-8"))
-                if len(self._cache) < 200_000:
-                    self._cache[chunk] = ids
+            if dropout:
+                ids = seg.get(chunk) if seg is not None else None
+                if ids is None:
+                    ids = self._encode_chunk(chunk.encode("utf-8"), dropout, rng)
+                    if seg is not None:
+                        seg[chunk] = ids
+            else:
+                ids = self._cache.get(chunk)
+                if ids is None:
+                    ids = self._encode_chunk(chunk.encode("utf-8"))
+                    if len(self._cache) < 200_000:
+                        self._cache[chunk] = ids
             out.extend(ids)
         return out
 
-    def encode_turn(self, role, text):
+    def encode_turn(self, role, text, **kw):
         """
         Uma fala da conversa -> (ids, mask). mask=1 marca os tokens que o modelo
         deve aprender a gerar: só as falas do assistente (texto ou chamada de
         ferramenta). O que o usuário diz e o que a ferramenta devolve é contexto.
         """
-        body = self.encode(text)
+        body = self.encode(text, **kw)
         if role == "user":
             ids = [self.user] + body + [self.end]
             return ids, [0] * len(ids)
@@ -173,11 +190,12 @@ class BPETokenizer:
             return ids, [0] + [1] * (len(ids) - 1)
         raise ValueError(f"papel desconhecido: {role}")
 
-    def encode_chat(self, messages):
+    def encode_chat(self, messages, dropout=0.0, rng=None):
         """Lista de {"role", "content"} -> (ids, mask) começando com <|bos|>."""
         ids, mask = [self.bos], [0]
+        kw = {"dropout": dropout, "rng": rng, "seg": {}} if dropout else {}
         for m in messages:
-            i, k = self.encode_turn(m["role"], m["content"])
+            i, k = self.encode_turn(m["role"], m["content"], **kw)
             ids += i
             mask += k
         return ids, mask

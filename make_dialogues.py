@@ -223,6 +223,8 @@ T_ABOUT = [  # (pedido, fato guardado, lista de onde sai o {x})
     ("nas horas vagas eu faço {x}", "eu faço {x}", "hobby"), ("sou viciado em {x}", "eu amo {x}", "hobby"),
     ("eu toco {x}", "eu toco {x}", "instrument"), ("tô aprendendo {x}", "eu toco {x}", "instrument"),
 ]
+ABOUT_WHEN = ["há dois anos", "faz uns meses", "há um tempão", "desde criança", "toda semana", "faz pouco tempo",
+              "de vez em quando", "desde o ano passado", "já faz anos", "quase todo dia", "há uns meses"]  # só treino
 R_ABOUT = ["Que massa! Guardei aqui. Faz tempo?", "Boa! Anotei. Curte mais pela saúde ou pela diversão?",
            "Show, guardei isso. Como você começou?", "Massa! Tá guardado. E tá gostando?",
            "Olha só! Guardei aqui. Me conta mais depois.", "Que legal! Anotado. É mais hobby ou coisa séria?",
@@ -325,6 +327,141 @@ T_WEATHER_HERE = ["como tá o tempo?", "vai chover hoje?", "qual a temperatura a
                   "como tá o clima?", "previsão do tempo", "vai fazer calor hoje?", "preciso de guarda-chuva?"]
 T_LOCK = ["bloqueia o pc", "bloqueia a tela", "trava o computador", "bloqueia o computador", "tranca o pc",
           "bloqueia o notebook"]
+
+# Moldes extras SÓ DE TREINO: mais jeitos de pedir a mesma coisa, para o modelo aprender o pedido e não
+# decorar o molde. Ficam fora do split, então os casos do eval continuam exatamente os mesmos.
+# (extras que contêm um molde de teste, ou estão contidos nele, são descartados em _train_only)
+_EXTRA = [
+    (T_APP, ["abre {o} {x} pfv", "você pode abrir {o} {x}?", "dá um jeito de abrir {o} {x}", "preciso usar {o} {x}",
+             "vou usar {o} {x}, abre aí", "liga {o} {x} pra mim", "abre {o} {x} por favor", "tem como abrir {o} {x}?",
+             "inicia {o} {x} aí", "bota {o} {x} pra abrir", "quero {o} {x} aberto", "deixa {o} {x} aberto pra mim",
+             "abre {o} {x} que eu vou usar", "pode iniciar {o} {x}?", "executa {o} {x} pra mim", "carrega {o} {x}",
+             "sobe {o} {x} aí", "abre lá {o} {x}", "faz o favor de abrir {o} {x}", "abre {o} {x} agora"]),
+    (T_APP_TWO, ["abre {o} {x} e {o2} {y} pra mim", "liga {o} {x} e {o2} {y}", "abre {o} {x}, e {o2} {y} também",
+                 "quero usar {o} {x} e {o2} {y}", "inicia {o} {x} e {o2} {y}", "pode abrir {o} {x} e {o2} {y}?",
+                 "bota {o} {x} e {o2} {y} pra rodar", "abre {x} e depois {y}", "abre {o} {x} junto com {o2} {y}",
+                 "me abre {o} {x} e {o2} {y}", "abre esses dois: {x} e {y}", "deixa {o} {x} e {o2} {y} abertos",
+                 "abre {x} e {y} pra mim", "executa {o} {x} e {o2} {y}"]),
+    (T_SEARCH, ["pesquisa pra mim {x}", "procura aí {x}", "dá uma pesquisada em {x}", "vê no google {x}",
+                "procura na internet {x}", "busca {x}", "joga {x} no google", "quero pesquisar {x}",
+                "faz uma busca de {x}", "pesquisa {x} no google pra mim", "procura sobre {x}", "me acha {x} na internet",
+                "dá uma olhada na internet: {x}", "pesquisa rapidinho {x}"]),
+    (T_YT, ["abre {x} no youtube", "quero ver {x} no youtube", "coloca um vídeo de {x}", "me mostra {x} no youtube",
+            "bota {x} no youtube", "toca {x} lá no youtube", "procura vídeo de {x}", "acha um vídeo de {x}",
+            "joga {x} no youtube", "vê se tem {x} no youtube", "quero assistir {x} no youtube",
+            "põe um vídeo de {x} aí", "abre o youtube e procura {x}", "busca vídeos de {x}", "me acha um vídeo de {x}"]),
+    (T_WHAT, ["o que seria {x}?", "explica {x} pra mim", "sabe me dizer o que é {x}?", "pra que serve {x}?",
+              "qual a definição de {x}?", "me ensina o que é {x}", "o que quer dizer {x}?", "tem como explicar {x}?",
+              "fala um pouco de {x}", "como é que funciona {x}?"]),
+    (T_WHO, ["quem era {x}?", "o que você sabe sobre {x}?", "quando morreu {x}?", "onde nasceu {x}?",
+             "qual a história de {x}?", "por que {x} é famoso?", "me conta quem foi {x}", "sabe quem é {x}?",
+             "o que {x} inventou?", "em que ano nasceu {x}?"]),
+    (T_COUNTRY, ["qual o idioma {do} {x}?", "onde fica {o} {x}?", "qual a população {do} {x}?",
+                 "qual o tamanho {do} {x}?", "quem governa {o} {x}?", "qual a comida típica {do} {x}?",
+                 "como é o clima {no} {x}?", "qual a maior cidade {do} {x}?", "que idioma se fala {no} {x}?",
+                 "qual o presidente {do} {x}?"]),
+    (T_CALC, ["quanto que dá {x}?", "me fala quanto é {x}", "conta: {x}", "faz {x} pra mim", "calcula aí {x}",
+              "qual é {x}?", "{x} é quanto?", "quanto fica {x}?", "me diz quanto dá {x}", "resolve essa: {x}",
+              "faz as contas: {x}", "quanto deu {x}?", "{x}?", "me ajuda a calcular {x}"]),
+    (T_REMIND, ["me lembra de {t} daqui {d}", "me avisa pra {t} em {d}", "em {d} me avisa pra {t}",
+                "lembrete pra {t} em {d}", "cria um lembrete pra {t} daqui a {d}", "me lembra daqui a {d} pra {t}",
+                "daqui {d} me avisa de {t}", "me cutuca em {d} pra {t}", "{t} em {d}, me lembra",
+                "não deixa eu esquecer de {t} daqui a {d}", "me avisa daqui a {d} que é pra {t}",
+                "agenda um lembrete de {t} pra daqui a {d}", "coloca um lembrete: {t}, daqui a {d}",
+                "me dá um toque em {d} pra {t}", "lembra de me avisar pra {t} em {d}",
+                "dentro de {d} me lembra de {t}", "põe um alarme pra {t} em {d}", "me lembra em {d} de {t}",
+                "faz um lembrete pra {t} daqui {d}", "preciso {t} daqui a {d}, me avisa",
+                "me avisa pra {t} daqui a {d}", "lembrete: {t} daqui a {d}"]),
+    (T_NOTE, ["anota pra mim: {x}", "guarda nas notas: {x}", "bota nas notas: {x}", "escreve isso: {x}",
+              "registra aí: {x}", "cria uma nota: {x}", "nota rápida: {x}", "anota aqui: {x}",
+              "salva isso nas notas: {x}", "põe nas notas {x}", "faz uma nota: {x}",
+              "anota pra eu não esquecer: {x}", "salva aí que eu não posso esquecer: {x}", "escreve nas notas: {x}"]),
+    (T_REMEMBER, ["lembra disso: {x}", "guarda aí que {x}", "fica sabendo que {x}", "só pra você saber, {x}",
+                  "registra na memória: {x}", "tenta lembrar que {x}", "não vai esquecer: {x}",
+                  "salva na memória que {x}", "guarda na cabeça: {x}", "decora isso: {x}"]),
+    (T_INTRO, ["me chama de {x}", "o meu nome é {x}", "aqui é {x}", "pode me chamar só de {x}",
+               "eu me chamo {x}", "meu apelido é {x}", "prazer, {x} aqui", "meu nome? {x}", "oi, sou {x}",
+               "prazer, sou {x}", "sou {x}, prazer", "aqui quem fala é {x}", "olá, sou {x}", "e aí, sou {x}",
+               "sou {x} aliás"]),
+    (REMINDERS, ["tirar o lixo da cozinha", "lavar a louça da janta", "regar as plantas da varanda",
+                 "buscar as crianças na escola", "colocar a roupa pra secar", "levar o cachorro pra passear",
+                 "pagar a conta de luz do mês", "responder a mensagem da minha irmã", "tirar o frango do freezer",
+                 "trocar a água do cachorro", "ligar pro mecânico sobre o carro", "estender a roupa no varal",
+                 "ver o feijão na panela de pressão", "desligar a máquina de lavar", "passar no mercado depois do trabalho",
+                 "tomar o remédio da pressão", "mandar a planilha pro meu chefe", "fechar a janela do quarto"]),
+    (T_LIVE, ["minha cidade é {x}", "sou de {x}", "tô morando em {x}", "eu fico em {x}", "a minha cidade é {x}"]),
+    (T_VOL["mais"], ["aumenta aí o som", "mais alto", "sobe um pouco o som", "volume pra cima", "tá baixinho",
+                     "aumenta mais", "dá uma aumentada no som", "não tô ouvindo, aumenta"]),
+    (T_VOL["menos"], ["abaixa aí", "mais baixo", "diminui um pouco", "tá alto demais", "baixa o volume",
+                      "volume pra baixo", "dá uma abaixada no som"]),
+    (T_VOL["mudo"], ["muta o som", "deixa no mudo", "desliga o som", "tira do mudo", "volta o áudio", "silencia",
+                     "liga o som de novo", "mudo", "tira o mudo"]),
+    (T_MEDIA["pausar"], ["pausa aí", "para a música", "pausa o som", "continua", "volta a tocar", "dá pause",
+                         "despausa a música", "continua tocando", "pode continuar a música", "retoma a música",
+                         "segue a música", "manda tocar de novo", "dá play de novo"]),
+    (T_MEDIA["proxima"], ["pula", "próxima faixa", "passa essa", "manda a próxima", "pula pra próxima"]),
+    (T_MEDIA["anterior"], ["volta uma", "a anterior", "volta a faixa", "toca a de antes", "música de antes"]),
+    (T_WEATHER, ["e o tempo em {x}?", "previsão pra {x}", "temperatura em {x}", "quantos graus em {x}?",
+                 "vai fazer sol em {x}?", "tá chovendo em {x}?", "me fala o clima de {x}", "como tá o tempo lá em {x}?",
+                 "previsão de chuva em {x}", "o tempo em {x} hoje", "faz frio em {x} hoje?", "previsão de hoje em {x}"]),
+    (T_WEATHER_HERE, ["vai chover?", "tá chovendo?", "quantos graus tá fazendo?", "vai fazer frio hoje?",
+                      "levo casaco hoje?", "preciso de casaco hoje?", "o tempo hoje", "previsão pra hoje",
+                      "tá sol hoje?", "vou precisar de sombrinha?", "vai ter chuva hoje?", "como tá o tempo hoje?",
+                      "preciso levar blusa?", "vou precisar de casaco hoje?", "preciso de protetor solar hoje?",
+                      "será que chove hoje?", "tá fazendo frio?", "preciso sair com capa de chuva?",
+                      "dá pra sair sem casaco?", "vai precisar de sombrinha hoje?"]),
+    (T_FOLDER, ["entra na pasta {x}", "vai pra pasta {x}", "vai até a pasta {x}", "abre aí a pasta {x}",
+                "quero ver a pasta {x}", "me leva na pasta {x}", "acessa a pasta {x}", "mostra o que tem na pasta {x}",
+                "vai lá na pasta de {x}", "abre a pasta {x} aí"]),
+    (T_ABOUT, [("eu faço aula de {x}", "eu faço {x}", "sport"), ("faço {x} três vezes por semana", "eu faço {x}", "sport"),
+               ("voltei a fazer {x}", "eu faço {x}", "sport"), ("pratico {x}", "eu pratico {x}", "sport"),
+               ("comecei {x} semana passada", "eu faço {x}", "sport"), ("treino {x} quase todo dia", "eu treino {x}", "sport"),
+               ("jogo {x}", "eu jogo {x}", "game"), ("eu jogo muito {x}", "eu jogo {x}", "game"),
+               ("viciei em {x}", "eu jogo {x}", "game"), ("curto jogar {x}", "eu jogo {x}", "game"),
+               ("passo o dia jogando {x}", "eu jogo {x}", "game"),
+               ("trabalho como {x}", "eu trabalho como {x}", "job"), ("atualmente trabalho como {x}", "eu trabalho como {x}", "job"),
+               ("comecei a trabalhar de {x}", "eu trabalho como {x}", "job"), ("meu trampo é de {x}", "eu trabalho como {x}", "job"),
+               ("fui {x} hoje", "hoje eu fui {x}", "place"), ("passei o dia {x}", "hoje eu fui {x}", "place"),
+               ("tô voltando {x}", "hoje eu fui {x}", "place"),
+               ("adoro {x}", "eu amo {x}", "hobby"), ("curto muito {x}", "eu curto {x}", "hobby"),
+               ("gosto muito de {x}", "eu curto {x}", "hobby"), ("meu passatempo é {x}", "meu hobby é {x}", "hobby"),
+               ("no tempo livre eu faço {x}", "eu faço {x}", "hobby"), ("sou apaixonado por {x}", "eu amo {x}", "hobby"),
+               ("curto {x}", "eu curto {x}", "hobby"),
+               ("toco {x}", "eu toco {x}", "instrument"), ("sei tocar {x}", "eu toco {x}", "instrument"),
+               ("comecei a tocar {x}", "eu toco {x}", "instrument"), ("tô tocando {x}", "eu toco {x}", "instrument"),
+               ("tô treinando {x}", "eu treino {x}", "sport"), ("tô praticando {x}", "eu pratico {x}", "sport"),
+               ("tô jogando muito {x}", "eu jogo {x}", "game"), ("tô curtindo {x}", "eu curto {x}", "hobby"),
+               ("no meu tempo livre eu jogo {x}", "eu jogo {x}", "game"),
+               ("quando sobra tempo eu faço {x}", "eu faço {x}", "hobby"),
+               ("nos fins de semana eu faço {x}", "eu faço {x}", "sport"),
+               ("trampo como {x}", "eu trabalho como {x}", "job"), ("trabalho na área como {x}", "eu trabalho como {x}", "job"),
+               ("tô trabalhando como {x}", "eu trabalho como {x}", "job")]),
+    (T_RECALL, [("qual meu nome mesmo?", "nome", "nome"), ("onde que eu moro mesmo?", "moro", "cidade"),
+                ("quando eu faço aniversário?", "aniversário", "aniv"), ("lembra do meu aniversário?", "aniversário", "aniv"),
+                ("o que eu gosto mesmo?", "gosto", "gosto"), ("lembra minha cor favorita?", "cor favorita", "cor"),
+                ("lembra com o que eu trabalho?", "trabalho", "trabalho"), ("o que eu tô estudando?", "estudo", "estudo"),
+                ("pra que time eu torço?", "time", "time"), ("qual o nome do meu pet?", "cachorro", "pet"),
+                ("o que você já sabe de mim?", "", "tudo"), ("me conta o que você lembra de mim", "", "tudo"),
+                ("você sabe quem eu sou?", "", "tudo"), ("lembra de mim?", "", "tudo"), ("me reconhece?", "", "tudo"),
+                ("sabe alguma coisa de mim?", "", "tudo")]),
+]
+
+
+def _train_only():
+    """id(lista) -> extras de treino, sem nenhum que coincida com um molde reservado para teste."""
+    out = {}
+    for items, extra in _EXTRA:
+        test = [(t[0] if isinstance(t, tuple) else t) for i, t in enumerate(items) if i % 4 == 3]
+        keep = []
+        for e in extra:
+            s = e[0] if isinstance(e, tuple) else e
+            if not any(s in t or t in s for t in test):
+                keep.append(e)
+        out[id(items)] = keep
+    return out
+
+
+TRAIN_ONLY = _train_only()
 
 # =================================================================== RESPOSTAS
 R_APP_OK = ["Pronto, {x} aberto.", "Feito! Abri o {x}.", "Abri o {x} pra você.", "Tá na mão: {x}.",
@@ -429,9 +566,9 @@ SMALLTALK = [
     (["qual o sistema que vc usa", "qual sistema você usa?", "qual modelo você usa?", "qual sua arquitetura?",
       "você é feita com o quê?", "qual IA você é?", "que modelo é você?", "como você foi feita?",
       "qual tecnologia você usa?", "que sistema é esse?", "você é baseada em quê?", "qual é o seu modelo?"],
-     ["Sou um Transformer tipo GPT, com uns 7 milhões de parâmetros, treinado do zero aqui no seu PC. Nada de "
+     ["Sou um Transformer tipo GPT, com uns 28 milhões de parâmetros, treinado do zero aqui no seu PC. Nada de "
       "modelo pronto.",
-      "Um Transformer pequenininho, estilo GPT: uns 7 milhões de parâmetros, treinado do zero na sua CPU."]),
+      "Um Transformer pequenininho, estilo GPT: uns 28 milhões de parâmetros, treinado do zero na sua placa de vídeo."]),
     (["em que linguagem você foi feita?", "você é feita em python?", "que biblioteca você usa?",
       "você usa pytorch?", "qual linguagem você usa?", "foi programada em quê?", "qual seu código?",
       "você foi feita em qual linguagem?"],
@@ -440,16 +577,16 @@ SMALLTALK = [
       "Python com PyTorch. Nada de modelo pronto: cada peça foi escrita e treinada do zero."]),
     (["onde você roda?", "você roda onde?", "você usa internet?", "precisa de internet?", "você funciona offline?",
       "você tá na nuvem?", "você manda meus dados pra algum lugar?", "vc usa a internet?", "você é online?"],
-     ["Rodo na CPU do seu PC, offline. Só o clima consulta a internet.",
-      "Aqui mesmo, na CPU do seu computador, sem nuvem. A internet só entra quando você pergunta do clima."]),
+     ["Rodo aqui no seu PC, offline. Só o clima consulta a internet.",
+      "Aqui mesmo, no seu computador, sem nuvem. A internet só entra quando você pergunta do clima."]),
     (["você é o ChatGPT?", "vc é o chatgpt?", "você é o Gemini?", "você usa o GPT?", "você é a Alexa?",
       "você é tipo o ChatGPT?", "você é o Claude?", "você é a Siri?"],
      ["Não, nada a ver! Sou caseira: treinada do zero no seu PC, bem menor que eles.",
       "Nada disso. Sou a {nome}, feita do zero aqui no seu computador. Bem mais simples que esses aí."]),
     (["quantos parâmetros você tem?", "qual seu tamanho?", "você é grande?", "quantos neurônios você tem?",
       "quão grande você é?", "você é um modelo grande?"],
-     ["Uns 7 milhões de parâmetros. Pequenininha perto dos modelos grandes, que têm bilhões.",
-      "Coisa de 7 milhões de parâmetros. Dá pra rodar numa CPU, mas não espera milagre."]),
+     ["Uns 28 milhões de parâmetros. Pequenininha perto dos modelos grandes, que têm bilhões.",
+      "Coisa de 28 milhões de parâmetros. Roda até sem placa de vídeo, mas não espera milagre."]),
     (["como você funciona?", "como vc funciona", "como você pensa?", "como você responde?",
       "como você decide o que falar?", "como você entende o que eu falo?"],
      ["Leio sua mensagem em pedaços (tokens) e prevejo a próxima palavra, uma de cada vez. Quando é pedido "
@@ -458,7 +595,7 @@ SMALLTALK = [
       "chamo a ferramenta certa em vez de responder."]),
     (["quem te criou?", "quem te fez?", "quem te treinou?", "de onde você veio?", "você foi feita por quem?",
       "quem é seu criador?"],
-     ["Você! Me treinou do zero aqui no seu PC. Cada neurônio meu saiu da sua CPU.",
+     ["Você! Me treinou do zero aqui no seu PC. Cada neurônio meu saiu da sua placa de vídeo.",
       "Foi você, ué. Código do zero, treino do zero, tudo aqui na sua máquina."]),
     (["o que você sabe fazer?", "o que vc faz?", "quais são suas funções?", "me ajuda com o quê?",
       "o que você consegue fazer?", "ajuda", "comandos", "o que dá pra fazer com você?"],
@@ -482,7 +619,7 @@ SMALLTALK = [
       "Ah, assim eu fico sem graça. Bora pro próximo?", "Valeu! Tô aprendendo ainda, mas a gente chega lá."]),
     (["você é burra", "vc é inútil", "que IA ruim", "você não sabe nada", "que resposta idiota",
       "você é lerda", "errou feio"],
-     ["Justo, eu sou bem limitada mesmo: poucos milhões de parâmetros rodando numa CPU. Mas me fala o que você "
+     ["Justo, eu sou bem limitada mesmo: poucos milhões de parâmetros rodando no seu PC. Mas me fala o que você "
       "queria que eu tento de outro jeito.",
       "Ai. Mas tem razão, ainda erro bastante. Me dá mais exemplos de treino que eu melhoro.",
       "Pode ser! Sou uma IA bem pequena. Tenta pedir de outro jeito que às vezes eu acerto."]),
@@ -553,7 +690,7 @@ SMALLTALK = [
       "Sou uma IA, não rola. Mas como parceira de tarefa, tô sempre aqui."]),
     (["você vai dominar o mundo?", "IAs vão dominar o mundo?", "você é perigosa?"],
      ["Eu mal consigo dominar uma frase longa. Fica tranquilo.",
-      "Com uns milhões de parâmetros numa CPU? Difícil. Meu plano máximo é abrir o Spotify."]),
+      "Com uns milhões de parâmetros num PC de casa? Difícil. Meu plano máximo é abrir o Spotify."]),
     (["quantos anos você tem?", "qual sua idade?", "quando você nasceu?"],
      ["Nasci quando você rodou o treino. Sou bem nova, então!",
       "Idade de IA é contada em passos de treino. Sou um bebê."]),
@@ -580,6 +717,83 @@ SMALLTALK = [
     (["pesquisa uma coisa", "faz uma pesquisa", "pesquisa pra mim"],
      ["Pesquiso sim. O quê?", "Manda o que você quer que eu procure."]),
 ]
+# Conversa pura SÓ DE TREINO: frases que parecem pedido mas são só papo (sono, música, esporte, comida...).
+# Ensinam a Lia a NÃO chamar ferramenta à toa ("perdi o sono" não é mutar o volume). Frases que coincidem
+# com alguma reservada para teste são descartadas logo abaixo.
+SMALLTALK_TRAIN = [
+    (["tô sem sono", "não consigo dormir", "tô com insônia", "dormi mal essa noite", "acordei cedo demais hoje",
+      "virei a noite acordado", "não dormi nada", "tô com sono mas não consigo dormir"],
+     ["Poxa, noite ruim é dose. Tenta largar a tela um pouco e deixar a luz mais baixa, ajuda.",
+      "Insônia é chata demais. Foi preocupação ou só o corpo que não quis desligar?",
+      "Que droga. Se der, tira um cochilo curto mais tarde, mas sem exagerar pra não bagunçar a noite."]),
+    (["tô com fome", "bateu uma fome", "tô morrendo de fome", "que fome", "nem almocei ainda"],
+     ["Então bora resolver isso! Tem alguma coisa pronta aí ou vai pedir?",
+      "Fome é prioridade. Come alguma coisa antes de continuar!"]),
+    (["me sugere uma comida", "o que eu janto hoje?", "me dá uma ideia de almoço", "o que eu como agora?",
+      "me indica um lanche", "tô sem ideia do que comer"],
+     ["Que tal um macarrão rapidinho? Pouca louça e resolve. Ou um omelete, se quiser algo leve.",
+      "Arroz, ovo e salada nunca falham. Se quiser algo especial, uma pizza caseira.",
+      "Um sanduíche caprichado resolve: pão, queijo, tomate e o que tiver na geladeira."]),
+    (["me indica uma série", "me sugere um filme", "que filme eu vejo hoje?", "tô sem ideia do que assistir",
+      "me recomenda alguma coisa pra assistir"],
+     ["Depende do clima: quer rir, se assustar ou algo pra pensar? Me fala que eu ajudo a escolher.",
+      "Comédia leve pra desligar a cabeça costuma funcionar. Se quiser, eu pesquiso uma lista pra você."]),
+    (["tô entediado", "que tédio", "não tenho nada pra fazer", "tô sem nada pra fazer", "tô de bobeira"],
+     ["Bora inventar algo: uma caminhada, um jogo, aprender alguma coisa nova?",
+      "Tédio às vezes é bom pra descansar a cabeça. Mas se quiser, a gente acha alguma coisa pra fazer."]),
+    (["tô ansioso", "tô estressado com o trabalho", "tô nervoso com a prova", "tô preocupado com uma coisa",
+      "minha cabeça tá a mil"],
+     ["Respira fundo um pouco, devagar. Quer me contar o que tá pegando?",
+      "Isso pesa mesmo. Ajuda dividir em partes pequenas e resolver uma de cada vez."]),
+    (["tô feliz hoje", "hoje foi um dia bom", "deu tudo certo hoje", "consegui o que eu queria", "tô animado"],
+     ["Que demais! Conta aí, o que rolou de bom?", "Boa! Dia bom merece ser comemorado."]),
+    (["essa música é muito boa", "tô ouvindo uma música boa aqui", "que música boa", "amo essa música",
+      "essa banda é demais"],
+     ["Boa! Música boa muda o dia.", "Curte mais pelo ritmo ou pela letra?"]),
+    (["esse esporte é muito bom", "o treino hoje foi pesado", "o jogo ontem foi tenso", "adorei esse filme",
+      "esse jogo é viciante", "o show foi incrível"],
+     ["Que massa! Conta mais.", "Boa demais! Esse tipo de coisa recarrega a gente.", "Haha, imagino!"]),
+    (["valeu", "obrigado", "brigado lia", "obrigada, {nome}", "valeu demais", "muito obrigado", "show, valeu"],
+     ["De nada! Tô aqui.", "Por nada! Precisando, chama.", "Tamo junto!"]),
+    (["verdade", "pois é", "entendi", "faz sentido", "ah sim", "saquei", "ok", "beleza então"],
+     ["Pois é!", "Isso aí.", "Fechou. Qualquer coisa, chama."]),
+    (["kkkkk", "haha", "kkk boa", "rsrs", "hahaha que isso"], ["Haha!", "Kkkk, fazer o quê."]),
+    (["diaa", "bom diaaa", "bom dia lia", "diaaa {nome}", "boooom dia"],
+     ["Bom dia! Bora começar?", "Bom dia! Café já foi?"]),
+    (["noitee", "boa noitee", "boa noite lia", "noiteee {nome}"], ["Boa noite! Ainda na ativa?", "Boa noite!"]),
+    (["você não sabe de nada né", "você é meio burrinha", "aprende mais aí", "você erra muito"],
+     ["Haha, ainda tô aprendendo! Sou pequenininha, mas cada treino eu melhoro.",
+      "Justo. Me fala onde eu errei que ajuda a melhorar."]),
+    (["você gosta de futebol?", "qual sua comida favorita?", "que música você curte?", "você tem time?",
+      "você dorme?", "você sente alguma coisa?"],
+     ["Eu não tenho gosto de verdade, sou uma IA pequena. Mas adoro quando você me conta dos seus!",
+      "Não do jeito que você sente, mas curto conversar sobre isso. E você?"]),
+]
+
+
+def _sem_teste(topics, test_topics):
+    """Tira das conversas de treino as frases que coincidem com alguma reservada para teste."""
+    test = [u for users, _ in test_topics for i, u in enumerate(users) if len(users) >= 4 and i % 4 == 3]
+    out = []
+    for users, replies in topics:
+        keep = [u for u in users if not any(u in t or t in u for t in test)]
+        if keep:
+            out.append((keep, replies))
+    return out
+
+
+SMALLTALK_TRAIN = _sem_teste(SMALLTALK_TRAIN, SMALLTALK)
+
+# Depois de contar algo de si, a pessoa costuma continuar o assunto: isso é conversa, não memória nova.
+ABOUT_FOLLOW = (["eu me encontrei nesse esporte", "me encontrei nisso", "é muito bom", "faz uns anos já",
+                 "comecei faz pouco tempo", "mais pela saúde mesmo", "é mais diversão", "é minha paixão",
+                 "ajuda muito na ansiedade", "tô curtindo demais", "é puxado mas vale a pena",
+                 "meu professor é muito bom", "quero competir ano que vem", "um amigo me chamou",
+                 "sim, faz tempo", "não faz muito tempo não", "tô gostando sim"],
+                ["Que demais! Isso faz muita diferença no dia.", "Boa! Continua firme nisso.",
+                 "Massa, dá pra ver que você curte.", "Olha só! Que bom que você achou algo que gosta.",
+                 "Show! Vai longe assim."])
+
 GIBBERISH_REPLIES = ["Não entendi nada, haha. Escreveu sem querer?", "Hmm, isso aí não fez sentido pra mim. Fala de novo?",
                      "Acho que o teclado escorregou. O que você queria?"]
 
@@ -641,7 +855,8 @@ class Gen:
     def sub(self, items):
         if len(items) < 4:
             return items
-        return [x for i, x in enumerate(items) if (i % 4 == 3) == (self.split == "test")]
+        out = [x for i, x in enumerate(items) if (i % 4 == 3) == (self.split == "test")]
+        return out + TRAIN_ONLY.get(id(items), []) if self.split == "train" else out
 
     def pick(self, items):
         return self.rng.choice(self.sub(items))
@@ -806,8 +1021,12 @@ class Gen:
         return f"{rng.randint(1, 5)}h{rng.choice(['10', '15', '20', '30', '40', '45'])}"
 
     def rand_task(self):
-        """Coisa para lembrar/anotar: verbo + termo sorteado."""
-        return f"{self.rng.choice(TASK_VERBS)} {self.rand_term(1, 3)}"
+        """Coisa para lembrar/anotar: verbo + termo sorteado (às vezes longa: "tirar a roupa da máquina")."""
+        rng = self.rng
+        t = f"{rng.choice(TASK_VERBS)} {self.rand_term(1, 3)}"
+        if rng.random() < 0.35:
+            t += f" {rng.choice(['da', 'do', 'de', 'pra', 'na', 'no', 'com'])} {self.rand_term(1, 2)}"
+        return t
 
     def rich_app_name(self):
         """Nomes de app mais variados: várias palavras, números, minúsculas, hífen."""
@@ -1098,7 +1317,9 @@ class Gen:
         return [U(text)] + self.finish("bloquear", "", "ok: tela bloqueada", R_LOCK)
 
     def ex_smalltalk(self):
-        users, replies = self.rng.choice(SMALLTALK)
+        # no treino, 40% do papo vem dos negativos "parecidos com pedido" (~8% de todas as falas)
+        pool = SMALLTALK_TRAIN if self.rand_on and self.rng.random() < 0.4 else SMALLTALK
+        users, replies = self.rng.choice(pool)
         text, _ = self.user(self.pick(users))
         return [U(text), A(self.reply(replies))]
 
@@ -1110,8 +1331,14 @@ class Gen:
         else:
             x = self.pick({"sport": SPORTS, "hobby": HOBBIES, "game": GAMES, "job": PROFESSIONS,
                            "instrument": INSTRUMENTS, "place": PLACES}[src])
+        if self.rand_on and rng.random() < 0.25 and tpl.endswith("{x}"):  # "faço X há dois anos" -> guarda só "eu faço X"
+            tpl += " " + rng.choice(ABOUT_WHEN)
         text, e = self.user(tpl, {"x": x})
-        return [U(text), C("lembrar", fact.replace("{x}", e["x"])), R("ok: guardei"), A(self.reply(R_ABOUT))]
+        msgs = [U(text), C("lembrar", fact.replace("{x}", e["x"])), R("ok: guardei"), A(self.reply(R_ABOUT))]
+        if self.rand_on and rng.random() < 0.35:  # continua o assunto: resposta normal, sem guardar de novo
+            follow, _ = self.user(rng.choice(ABOUT_FOLLOW[0]))
+            msgs += [U(follow), A(self.reply(ABOUT_FOLLOW[1]))]
+        return msgs
 
     def ex_fix_name(self):
         rng = self.rng
@@ -1180,10 +1407,15 @@ def main():
     ap.add_argument("--nome", default="Lia", help="nome da IA")
     ap.add_argument("--out", default="data/conversas/sinteticas.jsonl")
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--foco-copia", type=float, default=1.0,
+                    help="multiplica o peso dos tipos que copiam texto longo (factual, lembrete, youtube...)")
     args = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
 
     g = Gen(random.Random(args.seed), args.nome, split="train")
+    if args.foco_copia != 1:  # só muda a frequência no treino; os casos do eval_cases continuam os mesmos
+        copy_kinds = {"factual", "remind", "youtube", "search", "sobre_mim", "weather", "folder", "app", "remember"}
+        g.KINDS = {k: w * (args.foco_copia if k in copy_kinds else 1) for k, w in Gen.KINDS.items()}
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     n_msgs = 0
     with open(args.out, "w", encoding="utf-8") as f:
