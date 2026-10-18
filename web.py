@@ -27,9 +27,11 @@ PAGE = Path(__file__).resolve().parent / "web" / "index.html"
 # Conversas marcadas como "errou?": ficam para revisão. NÃO vão direto pro treino (a resposta errada
 # está nelas); depois de corrigidas, viram exemplos em data/conversas/.
 FEEDBACK = Path(__file__).resolve().parent / "data" / "feedback" / "erros.jsonl"
+STATIC = {"/manifest.json": ("manifest.json", "application/manifest+json"), "/sw.js": ("sw.js", "text/javascript"),
+          "/icon-192.png": ("icon-192.png", "image/png"), "/icon-512.png": ("icon-512.png", "image/png")}
 TOKEN = secrets.token_urlsafe(24)
 LOCK = threading.Lock()
-STATE = {"auto": False}
+STATE = {"auto": False, "permitidas": set()}  # ferramentas que não pedem mais confirmação
 BOT = None
 EVENTS = []  # lembretes disparados, entregues para a página na próxima consulta
 EVENTS_LOCK = threading.Lock()
@@ -40,13 +42,39 @@ def on_reminder(text):
         EVENTS.append({"type": "reminder", "text": text})
 
 
-def drive(text=None, approve=None):
+def undo_info(name, arg, result):
+    """O que o cartão pode desfazer depois de uma ação que deu certo."""
+    if not result.startswith("ok"):
+        return None
+    if name == "lembrar":
+        return {"tipo": "fato", "ref": arg, "rotulo": "desfazer"}
+    if name == "anotar":
+        return {"tipo": "nota", "ref": arg, "rotulo": "apagar"}
+    if name == "lembrete" and tools.LAST_REMINDER_ID and not tools.DRY_RUN:
+        return {"tipo": "lembrete", "ref": tools.LAST_REMINDER_ID, "rotulo": "cancelar"}
+    return None
+
+
+def resolve(approve):
+    name, arg = BOT.pending
+    tools.LAST_REMINDER_ID = None
+    text = BOT.resolve(approve)
+    ev = {"type": "result", "tool": name, "text": text, "undo": undo_info(name, arg, text)}
+    if name == "consultar" and text.startswith("ok") and tools.LAST_WIKI:
+        ev["link"], ev["titulo"] = tools.LAST_WIKI["url"], tools.LAST_WIKI["titulo"]  # o cartão mostra o artigo
+    return ev
+
+
+def drive(text=None, approve=None, retry=False):
     """Roda o laço do assistente até uma resposta em texto ou uma confirmação pendente."""
     if approve is not None:
         if BOT.pending is None:
             return
-        name = BOT.pending[0]
-        yield {"type": "result", "tool": name, "text": BOT.resolve(approve)}
+        yield resolve(approve)
+    if retry:  # "tentar de novo": tira a última fala de texto dela e gera outra
+        if BOT.pending is not None or not BOT.turns or BOT.turns[-1][0] != "assistant":
+            return
+        BOT.turns.pop()
     if text is not None:
         if BOT.pending is not None:  # mensagem nova com confirmação em aberto = cancelar
             BOT.resolve(False)
@@ -59,10 +87,10 @@ def drive(text=None, approve=None):
                 call = ev
         if call is None:
             return
-        if call["confirm"] and not STATE["auto"]:
+        if call["confirm"] and not STATE["auto"] and call["tool"] not in STATE["permitidas"]:
             yield {"type": "confirm", "tool": call["tool"], "arg": call["arg"]}
             return
-        yield {"type": "result", "tool": call["tool"], "text": BOT.resolve(True)}
+        yield resolve(True)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -101,9 +129,18 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+        elif self.path in STATIC:
+            body, ctype = (PAGE.parent / STATIC[self.path][0]).read_bytes(), STATIC[self.path][1]
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(body)))
+            if self.path == "/sw.js":
+                self.send_header("Service-Worker-Allowed", "/")
+            self.end_headers()
+            self.wfile.write(body)
         elif self.path == "/api/info" and self._allowed():
             i = BOT.info
-            self._json({"params": i["params"], "iter": i["iter"], "auto": STATE["auto"],
+            self._json({"params": i["params"], "iter": i["iter"], "val_loss": i["val_loss"], "auto": STATE["auto"],
                         "temperature": BOT.temperature, "apps": len(tools.APPS.apps or []),
                         "simulado": tools.DRY_RUN,
                         "tools": [{"name": t.name, "desc": t.desc, "confirm": t.confirm} for t in tools.TOOLS.values()]})
@@ -111,6 +148,10 @@ class Handler(BaseHTTPRequestHandler):
             with LOCK:
                 turns = [{"role": r, "text": t} for r, t, _ in BOT.turns]
             self._json({"turns": turns})
+        elif self.path == "/api/memoria" and self._allowed():
+            self._json(tools.memoria())
+        elif self.path == "/api/lembretes" and self._allowed():
+            self._json(tools.lembretes_ativos())
         elif self.path == "/api/events" and self._allowed():
             with EVENTS_LOCK:
                 out, EVENTS[:] = list(EVENTS), []
@@ -134,7 +175,22 @@ class Handler(BaseHTTPRequestHandler):
                 self._stream(drive(text=text))
         elif self.path == "/api/confirm":
             with LOCK:
+                if data.get("sempre") and BOT.pending:  # "Executar sempre": não pergunta mais para essa ferramenta
+                    STATE["permitidas"].add(BOT.pending[0])
                 self._stream(drive(approve=bool(data.get("approve"))))
+        elif self.path == "/api/retry":
+            with LOCK:
+                self._stream(drive(retry=True))
+        elif self.path == "/api/perfil":  # nome da boas-vindas vira memória: "meu nome é ..."
+            nome = " ".join(str(data.get("nome", "")).split())[:40]
+            if nome:
+                with LOCK:
+                    tools.run("lembrar", f"meu nome é {nome}")
+            self._json({"ok": bool(nome)})
+        elif self.path == "/api/desfazer":
+            with LOCK:
+                msg = tools.desfazer(str(data.get("tipo", "")), str(data.get("ref", "")))
+            self._json({"ok": True, "msg": msg})
         elif self.path == "/api/reset":
             with LOCK:
                 BOT.reset()
@@ -160,16 +216,28 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 with LOCK:
                     msgs = [{"role": r, "content": t} for r, t, _ in BOT.turns]
-                lines.append(json.dumps({"quando": time.strftime("%Y-%m-%d %H:%M"), "messages": msgs},
-                                        ensure_ascii=False))
+                item = {"quando": time.strftime("%Y-%m-%d %H:%M"), "origem": "interface", "messages": msgs}
+                if str(data.get("esperado", "")).strip():
+                    item["esperado"] = str(data["esperado"]).strip()[:500]
+                lines.append(json.dumps(item, ensure_ascii=False))
             FEEDBACK.write_text("".join(line + "\n" for line in lines), encoding="utf-8")
             self._json({"ok": True, "total": len(lines)})
+        elif self.path == "/api/memoria":
+            tipo, i = data.get("tipo"), data.get("apagar")
+            if tipo in ("fatos", "notas") and (i is None or isinstance(i, int)):
+                tools.apagar_memoria(tipo, i)
+            self._json(tools.memoria())
+        elif self.path == "/api/lembretes":
+            tools.cancelar_lembrete(str(data.get("cancelar", "")))
+            self._json(tools.lembretes_ativos())
         elif self.path == "/api/settings":
             if "auto" in data:
                 STATE["auto"] = bool(data["auto"])
+            if isinstance(data.get("permitidas"), list):
+                STATE["permitidas"] = {str(t) for t in data["permitidas"] if str(t) in tools.TOOLS}
             if "temperature" in data:
                 BOT.temperature = max(0.0, min(1.5, float(data["temperature"])))
-            self._json({"auto": STATE["auto"], "temperature": BOT.temperature})
+            self._json({"auto": STATE["auto"], "temperature": BOT.temperature, "permitidas": sorted(STATE["permitidas"])})
         else:
             self._json({"erro": "não encontrado"}, 404)
 
@@ -185,6 +253,8 @@ def main():
     args = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
     tools.DRY_RUN = args.simular
+    if args.simular:  # testes nunca mexem na memória e nas notas de verdade
+        tools.MEMORY_DIR = tools.MEMORY_DIR.with_name("memoria_simulada")
     STATE["auto"] = args.auto
     BOT = Assistant(args.ckpt)
     tools.APPS.load()

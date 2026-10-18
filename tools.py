@@ -41,6 +41,9 @@ DRY_RUN = False  # True = não abre nada de verdade (testes)
 
 # Quem quiser ser avisado quando um lembrete disparar (o chat do terminal, por exemplo).
 REMINDER_LISTENERS = []
+ACTIVE_REMINDERS = {}  # id -> (timer, texto, quando dispara): a interface lista e cancela
+LAST_REMINDER_ID = None  # o último lembrete criado (para o "cancelar" no cartão)
+_REPLACED_FACTS = {}  # fato novo -> fatos antigos que ele substituiu (para o "desfazer" devolver)
 
 
 @dataclass
@@ -132,6 +135,7 @@ APP_ALIASES = {
     "calculadora": ["Calculadora", "Calculator"], "calc": ["Calculadora", "Calculator"],
     "explorador de arquivos": ["Explorador de Arquivos", "File Explorer"],
     "explorer": ["Explorador de Arquivos", "File Explorer"], "meus arquivos": ["Explorador de Arquivos", "File Explorer"],
+    "arquivos": ["Explorador de Arquivos", "File Explorer"],
     "configuracoes": ["Configurações", "Settings"], "config": ["Configurações", "Settings"],
     "ajustes": ["Configurações", "Settings"], "settings": ["Configurações", "Settings"],
     "navegador": ["Google Chrome", "Microsoft Edge", "Firefox", "Brave", "Opera GX Browser", "Opera Browser"],
@@ -203,12 +207,18 @@ class AppIndex:
         if q == n:
             return 1.0
         s = difflib.SequenceMatcher(None, q, n).ratio()
-        if q in n.split() or n.startswith(q + " "):
+        palavras = n.split()
+        # Palavra solta só vale se for o começo do nome, se o nome for curto ou se cobrir boa parte dele:
+        # "trabalho" não abre "Conexão de Área de Trabalho Remota", "ficar" não abre "Verificar Atualizações".
+        forte = n.startswith(q + " ") or len(palavras) <= 2 or len(q) >= 0.5 * len(n)
+        if (q in palavras or n.startswith(q + " ")) and forte:
             s = max(s, 0.9)
-        elif len(q) >= 4 and q in n:
+        elif len(q) >= 4 and re.search(r"(^| )" + re.escape(q), n) and len(q) >= 0.5 * len(n):
             s = max(s, 0.8)
-        elif len(n) >= 4 and n in q:
+        elif len(n) >= 4 and re.search(r"(^| )" + re.escape(n) + r"( |$)", q):
             s = max(s, 0.78)
+        if len(q) <= 3 and not (q in palavras and len(palavras) <= 2):  # sigla curta ("la" não abre "Lia")
+            s = min(s, 0.5)
         if any(j in n for j in _JUNK):
             s *= 0.5
         return s
@@ -431,8 +441,71 @@ _NUM_WORDS = {"um": 1, "uma": 1, "dois": 2, "duas": 2, "tres": 3, "quatro": 4, "
               "quarenta": 40, "cinquenta": 50, "sessenta": 60}
 
 
-def parse_duracao(s):
-    """'10 minutos', '1h30', 'meia hora', '30 seg', 'duas horas' -> segundos."""
+def _horario(s):
+    """'às 15h', 'às 7:30', 'amanhã', 'amanhã 9h', 'hoje às 20h', 'meio-dia' -> (amanhã?, hora, minuto).
+    None se não for horário marcado. 'daqui a 10 minutos' e '1h30' (sem 'às') continuam sendo duração."""
+    s = strip_accents(s)
+    amanha, hoje = bool(re.search(r"\bamanha\b", s)), bool(re.search(r"\bhoje\b", s))
+    h = mi = None
+    if re.search(r"\bmeio[ -]?dia\b", s):
+        h, mi = 12, 0
+    elif re.search(r"\bmeia[ -]?noite\b", s):
+        h, mi = 0, 0
+    else:
+        m = (re.search(r"\b(\d{1,2}):(\d{2})\b", s)
+             or re.search(r"\b(?:as|ate as)\s+(\d{1,2})(?:\s*(?:h|horas?)\s*(\d{2})?)?\b", s)
+             or ((amanha or hoje) and re.search(r"\b(\d{1,2})\s*h(?:oras?)?\s*(\d{2})?\b", s)))
+        if m:
+            h, mi = int(m.group(1)), int(m.group(2) or 0)
+            if h < 12 and re.search(r"\bda (tarde|noite)\b", s):  # "às 3 da tarde"
+                h += 12
+    if h is None:
+        return (True, 9, 0) if amanha else None  # "amanhã" sem hora: às 9h
+    if not (0 <= h <= 23 and 0 <= mi <= 59):
+        return None
+    return amanha, h, mi
+
+
+def tempo_absoluto(s, agora=None):
+    """Segundos até o horário marcado em s (None se s não marca horário). Já passou hoje = amanhã."""
+    hr = _horario(s)
+    if hr is None:
+        return None
+    amanha, h, mi = hr
+    agora = agora or datetime.datetime.now()
+    alvo = agora.replace(hour=h, minute=mi, second=0, microsecond=0)
+    if amanha or alvo <= agora:
+        alvo += datetime.timedelta(days=1)
+    return int((alvo - agora).total_seconds())
+
+
+def ancorar_lembrete(arg, fala):
+    """O modelo às vezes perde o 'às 15h' ou o 'amanhã' ao copiar ('me avisa às 15h' -> 'lembrete: 15h', que
+    viraria 15 HORAS). Se a fala marca horário e o argumento não, o horário da fala vale."""
+    hr = _horario(fala)
+    if hr is None:
+        return arg
+    amanha, h, mi = hr
+    expr = " ".join((["amanhã"] if amanha else []) + [f"às {h}h" + (f"{mi:02d}" if mi else "")])
+    tempo, sep, texto = arg.partition("|")
+    if sep:
+        return arg if _horario(tempo) == hr else f"{expr} | {texto.strip()}"
+    try:
+        parse_duracao(arg)  # o argumento todo é um tempo ("15h"): troca pelo horário
+        return expr
+    except ValueError:  # o argumento todo é a tarefa ("pagar a conta")
+        return f"{expr} | {arg.strip()}"
+
+
+def parse_duracao(s, agora=None):
+    """'10 minutos', '1h30', 'meia hora', '30 seg', 'duas horas', 'às 15h', 'amanhã' -> segundos."""
+    t = tempo_absoluto(s, agora)
+    if t is not None:
+        if t <= 0 or t > 7 * 86400:
+            raise ValueError("horário fora do limite")
+        return t
+    if re.search(r"\bas\s+\d", strip_accents(s)):  # "às 25h": horário que não existe
+        raise ValueError("horário inválido")
     s = norm(s)
     if "meia hora" in s:
         return 1800
@@ -583,7 +656,8 @@ def _toast(titulo, texto):
     return r.returncode == 0 and not r.stderr.strip()
 
 
-def _fire_reminder(texto):
+def _fire_reminder(texto, rid=None):
+    ACTIVE_REMINDERS.pop(rid, None)
     for cb in list(REMINDER_LISTENERS):
         try:
             cb(texto)
@@ -611,11 +685,29 @@ def lembrete(arg):
         sec = parse_duracao(tempo)
     except ValueError:
         return "erro: não entendi o tempo"
-    t = threading.Timer(sec, _fire_reminder, args=(texto,))
+    rid = uuid.uuid4().hex[:8]
+    t = threading.Timer(sec, _fire_reminder, args=(texto, rid))
     t.daemon = True  # lembretes vivem enquanto o programa estiver aberto
     if not DRY_RUN:
+        global LAST_REMINDER_ID
+        ACTIVE_REMINDERS[rid] = (t, texto, time.time() + sec)
+        LAST_REMINDER_ID = rid
         t.start()
     return f"ok: em {formatar_duracao(sec)}: {texto}"
+
+
+def lembretes_ativos():
+    """Lembretes que ainda vão disparar (para a interface)."""
+    agora = time.time()
+    return sorted(({"id": k, "texto": v[1], "faltam": max(0, int(v[2] - agora))} for k, v in ACTIVE_REMINDERS.items()),
+                  key=lambda r: r["faltam"])
+
+
+def cancelar_lembrete(rid):
+    item = ACTIVE_REMINDERS.pop(rid, None)
+    if item:
+        item[0].cancel()
+    return item is not None
 
 
 # ===================================================================== NOTAS
@@ -640,6 +732,58 @@ def ver_notas(arg):
     return "ok: " + "; ".join(notes[-5:])
 
 
+def memoria():
+    """Fatos guardados e notas, para a interface mostrar (e apagar, se a pessoa quiser)."""
+    try:
+        linhas = _mem_path("notas.md").read_text(encoding="utf-8").splitlines()
+    except OSError:
+        linhas = []
+    notas = [re.sub(r"^- \[[^\]]*\]\s*", "", l) for l in linhas if l.startswith("- ")]
+    return {"fatos": _load_json("fatos.json", []), "notas": notas}
+
+
+def apagar_memoria(tipo, i=None):
+    """Apaga o item i (ou tudo, com i=None) dos fatos ou das notas."""
+    if tipo == "fatos":
+        fatos = _load_json("fatos.json", [])
+        _save_json("fatos.json", [] if i is None else [f for k, f in enumerate(fatos) if k != i])
+    elif tipo == "notas":
+        path = _mem_path("notas.md")
+        try:
+            linhas = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            return
+        idx = [k for k, l in enumerate(linhas) if l.startswith("- ")]
+        tirar = set(idx) if i is None else ({idx[i]} if 0 <= i < len(idx) else set())
+        path.write_text("".join(l + "\n" for k, l in enumerate(linhas) if k not in tirar), encoding="utf-8")
+
+
+def desfazer(tipo, ref):
+    """Desfaz uma ação pelo cartão da interface. Devolve uma frase curta para mostrar."""
+    if tipo == "lembrete":
+        return "lembrete cancelado" if cancelar_lembrete(ref) else "esse lembrete já tinha disparado"
+    if tipo == "fato":
+        fatos = _load_json("fatos.json", [])
+        if ref not in fatos:
+            return "isso já não estava guardado"
+        fatos = [f for f in fatos if f != ref] + _REPLACED_FACTS.pop(ref, [])  # devolve o que tinha sido trocado
+        _save_json("fatos.json", fatos)
+        return "esqueci isso"
+    if tipo == "nota":
+        path = _mem_path("notas.md")
+        try:
+            linhas = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            return "nota não encontrada"
+        for k in range(len(linhas) - 1, -1, -1):  # a mais recente com esse texto
+            if linhas[k].startswith("- ") and re.sub(r"^- \[[^\]]*\]\s*", "", linhas[k]) == ref:
+                del linhas[k]
+                path.write_text("".join(l + "\n" for l in linhas), encoding="utf-8")
+                return "nota apagada"
+        return "nota não encontrada"
+    return "não sei desfazer isso"
+
+
 # ============================================================ MEMÓRIA LONGA
 _STOP = set("o a os as um uma de do da dos das e eu meu minha me que qual quais é eh sou em no na pra para com "
             "voce vc sobre mim lembra sabe".split())
@@ -652,6 +796,7 @@ def lembrar(arg):
     fatos = _load_json("fatos.json", [])
     # Um fato novo sobre o mesmo assunto ("meu nome é ...") substitui o antigo.
     chave = " ".join(norm(arg).split()[:3])
+    _REPLACED_FACTS[arg] = [f for f in fatos if " ".join(norm(f).split()[:3]) == chave and f != arg]
     fatos = [f for f in fatos if " ".join(norm(f).split()[:3]) != chave]
     fatos.append(arg)
     _save_json("fatos.json", fatos)
@@ -806,6 +951,79 @@ def clima(arg):
     if chuva is not None:
         texto += f", chuva {chuva}%"
     return "ok: " + texto
+
+
+# =================================================================== WIKIPÉDIA
+# A Lia não sabe fatos de cabeça (e inventaria): ela lê o começo do artigo e repete.
+WIKI_API = "https://pt.wikipedia.org/w/api.php"
+WIKI_UA = "Lia/1.0 (assistente pessoal em portugues; https://lia-ai.pages.dev)"  # a Wikimedia pede identificação
+LAST_WIKI = None  # {"titulo", "url"} da última consulta: o cartão mostra o link do artigo
+_ABREV = {"dr", "dra", "sr", "sra", "srta", "st", "jr", "prof", "profa", "a.c", "d.c", "séc", "vol", "cap", "n.º", "nº"}
+_ARTIGO = re.compile(r"^(o|a|os|as|um|uma)\s+", re.IGNORECASE)
+
+
+def resumo_wiki(texto, limite=260):
+    """Primeiro parágrafo do artigo -> uma ou duas frases limpas, curtas o bastante para a Lia repetir.
+    O mesmo que resumoWiki() do site (webapp/ferramentas.js): mexeu num, mexe no outro."""
+    t = texto.strip().split("\n")[0]
+    t = re.sub(r"\s*\[[^\[\]]*\]", "", t)  # pronúncia: [kɐ̃ˈbɛʁɐ]
+    antes = None
+    while antes != t:  # parênteses sem número (variante, nome em inglês) saem; com data ficam
+        antes = t
+        t = re.sub(r"\s*\(([^()]*)\)", lambda m: m.group(0) if re.search(r"[0-9]", m.group(1)) else "", t)
+    t = re.sub(r"\s+([,.;:])", r"\1", re.sub(r"\s+", " ", t)).strip()
+    frases, ini = [], 0
+    for m in re.finditer(r"[.!?](?=\s+[A-ZÀ-Ý0-9\"“(])", t):
+        w = t[ini:m.start()].rsplit(" ", 1)[-1]
+        if w.lower() in _ABREV or (len(w) == 1 and w.isalpha()):  # "Dr.", "a.C.", iniciais ("J. R.")
+            continue
+        frases.append(t[ini:m.end()].strip())
+        ini = m.end()
+    if t[ini:].strip():
+        frases.append(t[ini:].strip())
+    out = frases[0] if frases else ""
+    if len(frases) > 1 and len(out) < 80 and len(out) + 1 + len(frases[1]) <= limite:
+        out += " " + frases[1]  # frase curta demais sozinha ("Camberra é a capital da Austrália."): junta a próxima
+    if len(out) > limite:
+        corte = out[:limite]
+        k = corte.rfind(", ")
+        corte = corte[:k] if k > limite * 0.6 else corte[:corte.rfind(" ")]
+        out = corte.rstrip(" ,;:") + "…"
+    return out
+
+
+def assunto_wiki(arg):
+    q = arg.strip(" ?!.\t")
+    return _ARTIGO.sub("", q).strip()
+
+
+@tool("consultar", "lê o resumo de um assunto na Wikipédia")
+def consultar(arg):
+    global LAST_WIKI
+    LAST_WIKI = None
+    q = assunto_wiki(arg)
+    if not q:
+        return "erro: consultar o quê?"
+    p = {"action": "query", "format": "json", "formatversion": 2, "generator": "search", "gsrsearch": q,
+         "gsrlimit": 3, "prop": "extracts|pageprops", "exintro": 1, "explaintext": 1, "exlimit": 3,
+         "ppprop": "disambiguation", "redirects": 1}
+    try:
+        req = urllib.request.Request(WIKI_API + "?" + urllib.parse.urlencode(p), headers={"User-Agent": WIKI_UA})
+        with urllib.request.urlopen(req, timeout=8) as r:
+            d = json.loads(r.read().decode("utf-8"))
+    except OSError:
+        return "erro: sem internet"
+    pages = [pg for pg in sorted(d.get("query", {}).get("pages", []), key=lambda pg: pg.get("index", 99))
+             if "pageprops" not in pg and (pg.get("extract") or "").strip()]  # pula desambiguação
+    if not pages:
+        return f"erro: não achei {q} na Wikipédia"
+    alvo = next((pg for pg in pages if norm(pg["title"]) == norm(q)), pages[0])  # título exato ganha
+    resumo = resumo_wiki(alvo["extract"])
+    if not resumo:
+        return f"erro: não achei {q} na Wikipédia"
+    LAST_WIKI = {"titulo": alvo["title"],
+                 "url": "https://pt.wikipedia.org/wiki/" + urllib.parse.quote(alvo["title"].replace(" ", "_"))}
+    return "ok: " + resumo
 
 
 # ===================================================================== SISTEMA

@@ -18,14 +18,16 @@ from collections import defaultdict
 import torch
 
 import tools
+from copia import Copia, carregar_fixas
 from make_dialogues import eval_cases
 from model import GPT, GPTConfig
 from tokenizer import BPETokenizer
 
 
 @torch.no_grad()
-def predict(model, tok, user_text):
-    """Primeira fala do assistente: ("call", "nome: arg") ou ("assistant", None)."""
+def predict(model, tok, user_text, fixas=None):
+    """Primeira fala do assistente: ("call", "nome: arg") ou ("assistant", None).
+    Com `fixas`, usa a mesma cópia forçada do agente (copia.py)."""
     ids = [tok.bos] + tok.encode_turn("user", user_text)[0] + [tok.assistant]
     dev = model.tok_emb.weight.device
     cache = model.new_cache()
@@ -33,13 +35,15 @@ def predict(model, tok, user_text):
     logits = logits[0, -1]
     if int(logits.argmax()) != tok.call:
         return "assistant", None
-    gen, t = [], tok.call
+    copia = Copia(fixas, user_text) if fixas else None
+    gen, raw, t = [], b"", tok.call
     for _ in range(48):
         logits, _ = model(torch.tensor([[t]], device=dev), cache=cache)
-        t = int(logits[0, -1].argmax())
-        if t == tok.end:
+        t = copia.escolhe(logits[0, -1], raw, tok) if copia else int(logits[0, -1].argmax())
+        if t is None or t == tok.end:
             break
         gen.append(t)
+        raw += tok.vocab[t]
     return "call", tok.decode(gen).strip()
 
 
@@ -48,7 +52,7 @@ def reply_after(model, tok, user_text, call, result):
     """Resposta do assistente depois de ver o resultado da ferramenta (gulosa)."""
     ids = [tok.bos] + tok.encode_turn("user", user_text)[0] + tok.encode_turn("call", call)[0]
     ids += tok.encode_turn("result", result)[0] + [tok.assistant]
-    return tok.decode(list(model.generate(ids, 80, temperature=0, stop_ids=(tok.end,))))
+    return tok.decode(list(model.generate(ids, 160, temperature=0, stop_ids=(tok.end,))))  # resumo da Wikipédia é longo
 
 
 def key_value(kind, result):
@@ -62,6 +66,8 @@ def key_value(kind, result):
         return v.split(":")[0].removeprefix("em ")
     if kind in ("hora", "data", "calc", "weather", "recall", "see_notes"):
         return v
+    if kind == "factual" and not v.startswith("pesquisa aberta"):  # consultar: a resposta repete o resumo
+        return v
     return None
 
 
@@ -74,6 +80,7 @@ def main():
     ap.add_argument("--ckpt", default="out/chat.pt")
     ap.add_argument("--n", type=int, default=40, help="casos por tipo de pedido")
     ap.add_argument("--erros", type=int, default=12, help="quantos erros mostrar")
+    ap.add_argument("--sem-copia", action="store_true", help="desliga a cópia forçada (mede o modelo puro)")
     args = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
 
@@ -82,7 +89,9 @@ def main():
     model = GPT(GPTConfig(**ckpt["config"])).eval()
     model.load_state_dict(ckpt["model"])
     model.to("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Modelo: {args.ckpt} (passo {ckpt['iter']}, val loss {ckpt['best_val']:.3f})\n")
+    fixas = None if args.sem_copia else carregar_fixas(args.ckpt)
+    print(f"Modelo: {args.ckpt} (passo {ckpt['iter']}, val loss {ckpt['best_val']:.3f}) | "
+          f"cópia forçada: {'ligada' if fixas else 'desligada'}\n")
 
     stats = defaultdict(lambda: [0, 0, 0, 0])  # total, rota, ferramenta, argumento
     faithful = defaultdict(lambda: [0, 0])  # respostas que repetem o valor certo / total
@@ -96,7 +105,7 @@ def main():
             faithful[c["kind"]][1] += 1
             if not hit:
                 unfaithful.append((c["result"], reply))
-        role, out = predict(model, tok, c["user"])
+        role, out = predict(model, tok, c["user"], fixas)
         s = stats[c["kind"]]
         s[0] += 1
         route = role == c["role"]

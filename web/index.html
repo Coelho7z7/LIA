@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Lia</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#121214">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23111'/%3E%3Cg fill='%23fff'%3E%3Crect x='18' y='14' width='10' height='36'/%3E%3Crect x='18' y='40' width='28' height='10'/%3E%3Crect x='36' y='24' width='10' height='10'/%3E%3C/g%3E%3C/svg%3E">
 <style>
   :root {
@@ -12,7 +14,8 @@
     --user: #111111; --user-ink: #ffffff; --logo-bg: #111111; --logo-fg: #ffffff;
     --ok: #2b8a3e; --err: #c92a2a; --warn: #f08c00; --chip: #f0eee9; --side: #efede8;
     --shadow: 0 1px 2px rgba(0,0,0,.04), 0 6px 24px rgba(0,0,0,.06);
-    --ease: cubic-bezier(.2, .8, .2, 1); --spring: cubic-bezier(.34, 1.56, .64, 1);
+    --ease: cubic-bezier(.2, .8, .2, 1); --spring: cubic-bezier(.34, 1.56, .64, 1); --pop: cubic-bezier(.22, 1.3, .36, 1);
+    --fs: 15px; --chat-w: 780px;
   }
   :root[data-theme="dark"] {
     --bg: #121214; --panel: #1b1b1f; --panel-2: #17171a; --ink: #ecebe8; --muted: #9b98a3; --line: #2b2b31;
@@ -32,7 +35,7 @@
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
-  body { background: var(--bg); color: var(--ink); font: 15px/1.55 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  body { background: var(--bg); color: var(--ink); font: var(--fs)/1.55 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
          display: flex; overflow: hidden; -webkit-font-smoothing: antialiased; }
   html.theming * { transition: background-color .3s, border-color .3s, color .3s !important; }
   button { font: inherit; color: inherit; cursor: pointer; }
@@ -94,14 +97,14 @@
   main::-webkit-scrollbar, #chatlist::-webkit-scrollbar { width: 8px; }
   main::-webkit-scrollbar-button, #chatlist::-webkit-scrollbar-button { display: none; }
   main::-webkit-scrollbar-thumb, #chatlist::-webkit-scrollbar-thumb { background: var(--line); border-radius: 8px; }
-  #log { max-width: 780px; margin: 0 auto; padding: 24px 16px 12px; display: flex; flex-direction: column; gap: 6px; }
-  .row { display: flex; gap: 10px; align-items: flex-end; animation: in-bot .38s var(--ease) both; transform-origin: bottom left; }
+  #log { max-width: var(--chat-w); margin: 0 auto; padding: 24px 16px 12px; display: flex; flex-direction: column; gap: 6px; }
+  .row { display: flex; gap: 10px; align-items: flex-end; animation: in-bot .5s var(--pop) both; transform-origin: bottom left; }
   .row.user { justify-content: flex-end; animation-name: in-user; transform-origin: bottom right; }
   .row.bot { align-items: flex-start; }
   .row.bot .time { align-self: flex-end; }
-  @keyframes in-bot { from { opacity: 0; transform: translate(-10px, 6px) scale(.97); } }
-  @keyframes in-user { from { opacity: 0; transform: translate(10px, 6px) scale(.97); } }
-  #log.restored .row, #log.restored .tk, #log.restored .st path, #log.restored .out { animation: none; }
+  @keyframes in-bot { from { opacity: 0; transform: translate(-14px, 10px) scale(.92); filter: blur(4px); } }
+  @keyframes in-user { from { opacity: 0; transform: translate(6px, 26px) scale(.9); filter: blur(3px); } }
+  #log.restored .row, #log.restored .tk, #log.restored .st path, #log.restored .out, #log.restored .tool { animation: none; }
   #log.swap { animation: fade .3s var(--ease); }
   @keyframes fade { from { opacity: 0; } }
   .row.bot .avatar { visibility: hidden; }
@@ -141,6 +144,8 @@
   @keyframes slide-in { from { opacity: 0; transform: translateX(-6px); } }
   .tool .out::before { content: "→ "; color: var(--muted); }
   .tool .arg:empty, .tool .out:empty { display: none; }
+  .tool .openlink { color: var(--muted); font-size: 12.5px; white-space: nowrap; text-underline-offset: 2px; }
+  .tool .openlink:hover { color: var(--ink); }
   .tool .st { display: flex; }
   .tool.ok .st path, .tool.err .st path, .tool.off .st path { stroke-dasharray: 30; animation: draw .5s var(--ease) both; }
   @keyframes draw { from { stroke-dashoffset: 30; } }
@@ -185,7 +190,7 @@
 
   /* ---------- caixa de texto */
   footer { padding: 10px 16px 14px; }
-  form { max-width: 780px; margin: 0 auto; display: flex; gap: 8px; align-items: flex-end; background: var(--panel);
+  form { max-width: var(--chat-w); margin: 0 auto; display: flex; gap: 8px; align-items: flex-end; background: var(--panel);
          border: 1px solid var(--line); border-radius: 18px; padding: 8px 8px 8px 16px; box-shadow: var(--shadow);
          transition: border-color .2s; }
   form:focus-within { border-color: color-mix(in srgb, var(--ink) 45%, var(--line)); }
@@ -199,7 +204,7 @@
   .send:active:not(:disabled) { transform: scale(.9); }
   @keyframes nudge { 40% { transform: translateY(-3px); } }
   .send:disabled { opacity: .3; cursor: default; }
-  .hint { max-width: 780px; margin: 6px auto 0; color: var(--muted); font-size: 12px; text-align: center; }
+  .hint { max-width: var(--chat-w); margin: 6px auto 0; color: var(--muted); font-size: 12px; text-align: center; }
   kbd { font: 11px/1 inherit; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 1px 5px; }
 
   /* ---------- configurações */
@@ -271,6 +276,222 @@
                   text-decoration: underline; text-underline-offset: 3px; }
   #snack button:hover { background: color-mix(in srgb, var(--bg) 15%, transparent); }
 
+  /* ---------- animações vivas */
+  /* tela inicial: logo flutuando */
+  .empty .avatar { animation: pop .6s var(--spring) both, float 4.5s ease-in-out .9s infinite; }
+  @keyframes float { 50% { transform: translateY(-6px) rotate(-2deg); } }
+  .chip:hover .ci { animation: nudge .5s var(--ease); }
+  #hlogo:hover svg { animation: wiggle .55s var(--spring); }
+  @keyframes wiggle { 25% { transform: rotate(-9deg) scale(1.05); } 70% { transform: rotate(5deg); } }
+
+  /* "pensando": pontinhos + texto com brilho passando */
+  .msg.think { display: flex; align-items: center; gap: 9px; }
+  .shim { font-size: 13px; background: linear-gradient(90deg, var(--muted) 20%, var(--ink) 50%, var(--muted) 80%) 0 0 / 220% 100%;
+          -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 1.7s linear infinite; }
+  @keyframes shimmer { to { background-position: -220% 0; } }
+
+  /* ferramenta: brilho enquanto roda, pulso verde no sucesso, tremidinha no erro */
+  .tool.wait { background: linear-gradient(100deg, var(--panel-2) 30%, color-mix(in srgb, var(--ink) 7%, var(--panel-2)) 50%, var(--panel-2) 70%) 0 0 / 260% 100%;
+               animation: sweep 1.5s linear infinite; }
+  @keyframes sweep { to { background-position: -160% 0; } }
+  .tool.ok { animation: okpulse .9s var(--ease); }
+  @keyframes okpulse { from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 45%, transparent); } to { box-shadow: 0 0 0 10px transparent; } }
+  .tool.err { animation: shake .45s var(--ease); }
+  @keyframes shake { 20% { transform: translateX(-5px); } 45% { transform: translateX(4px); } 70% { transform: translateX(-2px); } }
+
+  /* caixa de texto: borda girando enquanto ela responde; seta "voando" ao enviar */
+  @property --ang { syntax: "<angle>"; initial-value: 0deg; inherits: false; }
+  form.busy { border-color: transparent;
+    background: linear-gradient(var(--panel), var(--panel)) padding-box,
+                conic-gradient(from var(--ang), var(--line) 0%, var(--ink) 18%, var(--line) 36%, var(--line) 100%) border-box;
+    animation: spinang 2.4s linear infinite; }
+  @keyframes spinang { to { --ang: 360deg; } }
+  .send.fly svg { animation: fly .5s var(--ease); }
+  @keyframes fly { 45% { transform: translateY(-16px); opacity: 0; } 46% { transform: translateY(14px); opacity: 0; } }
+
+  /* status no topo */
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex: none; transition: background .3s; }
+  .dot.on { background: var(--ok); animation: ping 2.4s ease-out infinite; }
+  .dot.off { background: var(--err); }
+  @keyframes ping { from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 55%, transparent); } 70%, to { box-shadow: 0 0 0 6px transparent; } }
+
+  /* botão "ir para o fim" quando você rola pra cima */
+  .app { position: relative; }
+  #tobottom { position: absolute; left: 50%; bottom: 96px; width: 38px; height: 38px; border-radius: 50%; display: grid;
+              place-items: center; background: var(--panel); color: var(--ink); border: 1px solid var(--line); box-shadow: var(--shadow);
+              opacity: 0; pointer-events: none; transform: translate(-50%, 16px) scale(.8);
+              transition: opacity .25s var(--ease), transform .35s var(--spring); z-index: 3; }
+  #tobottom.show { opacity: 1; pointer-events: auto; transform: translate(-50%, 0) scale(1); }
+  #tobottom:hover { transform: translate(-50%, -2px) scale(1.06); }
+  #tobottom svg { width: 18px; height: 18px; }
+  #tobottom i { position: absolute; top: -2px; right: -2px; width: 10px; height: 10px; border-radius: 50%; background: var(--ink);
+                border: 2px solid var(--panel); display: none; animation: ping 2s infinite; }
+  #tobottom.new i { display: block; }
+
+  /* lembrete: barra de tempo; ajustes entrando em cascata */
+  #toast { overflow: hidden; }
+  #toast::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--warn); transform-origin: left; transform: scaleX(0); }
+  #toast.show::after { animation: countdown 8s linear forwards; }
+  @keyframes countdown { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+  #settings.open > * { animation: rise .45s var(--ease) both; animation-delay: calc(var(--k, 0) * 22ms); }
+  ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+
+  /* ---------- opções novas dos ajustes */
+  :root.times .time { opacity: 1; }
+  :root.nofb .fb { display: none; }
+  :root[data-typing="off"] .tk { animation: none; }
+  #settings select { width: 100%; padding: 7px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2);
+                     color: var(--ink); font: inherit; font-size: 14px; }
+  .row2 { display: flex; gap: 8px; align-items: center; padding: 6px 0; }
+  .row2 > :first-child { flex: 1; }
+  .mini { border: 1px solid var(--line); background: none; border-radius: 9px; padding: 6px 12px; font-size: 13px; font-weight: 600;
+          transition: background .15s, transform .15s var(--ease); flex: none; }
+  .mini:hover { background: var(--chip); }
+  .mini:active { transform: scale(.95); }
+  .mini.danger { color: var(--err); }
+  .mem { list-style: none; margin: 4px 0 6px; padding: 0; display: grid; gap: 4px; }
+  .mem li { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 10px; border-radius: 9px; background: var(--panel-2);
+            border: 1px solid var(--line); font-size: 13.5px; animation: rise .3s var(--ease) both; }
+  .mem li span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .mem li small { color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
+  .mem li button { border: 0; background: none; color: var(--muted); width: 24px; height: 24px; border-radius: 7px; display: grid;
+                   place-items: center; flex: none; }
+  .mem li button:hover { background: var(--line); color: var(--err); }
+  .mem li button svg { width: 14px; height: 14px; }
+  .mem li.out { animation: leave .25s var(--ease) forwards; }
+  @keyframes leave { to { opacity: 0; transform: translateX(14px); } }
+  .mem-empty { color: var(--muted); font-size: 13px; padding: 4px 0 8px; }
+  .keys { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 13px; color: var(--muted); align-items: center; }
+  .about { font-size: 13px; color: var(--muted); line-height: 1.7; }
+  .about b { color: var(--ink); font-weight: 600; }
+
+  /* animações: suaves = só aparecer; desligadas = nada se mexe */
+  :root[data-motion="soft"] .row, :root[data-motion="soft"] .tool, :root[data-motion="soft"] .chip { animation-name: fade !important; }
+  :root[data-motion="soft"] .empty .avatar,
+  :root[data-motion="soft"] form.busy, :root[data-motion="soft"] .tool.wait { animation: none !important; }
+  :root[data-motion="off"] *, :root[data-motion="off"] *::before, :root[data-motion="off"] *::after { animation: none !important; transition: none !important; }
+
+  /* ---------- cartões: desfazer, sempre permitir, versões ricas */
+  .tool .undo { border: 0; background: none; padding: 1px 6px; margin-left: 2px; font-size: 12.5px; font-weight: 600; color: var(--muted);
+                border-radius: 7px; text-decoration: underline; text-underline-offset: 3px; transition: color .15s, background .15s; }
+  .tool .undo:hover { color: var(--ink); background: var(--chip); }
+  .tool.undone { opacity: .62; }
+  .tool.undone .arg, .tool.undone .out { text-decoration: line-through; }
+  .tool .undone-msg { font-size: 12.5px; color: var(--muted); animation: slide-in .3s var(--ease) both; }
+  .tool .always { background: transparent; border: 1px dashed var(--line); color: var(--ink); }
+  .tool .always:hover { background: var(--chip); }
+  .rich { flex-basis: 100%; margin: 6px 0 2px; color: var(--ink); animation: drop .35s var(--ease) both; }
+  .wx { display: flex; align-items: center; gap: 14px; }
+  .wx > svg { width: 40px; height: 40px; stroke-width: 1.6; flex: none; }
+  .wx .temp { font-size: 30px; font-weight: 650; line-height: 1; letter-spacing: -1px; }
+  .wx .info { font-size: 13px; color: var(--muted); line-height: 1.45; }
+  .wx .info b { color: var(--ink); font-weight: 600; }
+  .calc-big { font-size: 26px; font-weight: 650; letter-spacing: -.5px; font-variant-numeric: tabular-nums; word-break: break-all; }
+  .calc-big::before { content: "= "; color: var(--muted); font-weight: 400; }
+  .notes-list { margin: 0; padding-left: 18px; font-size: 13.5px; }
+  .notes-list li { margin: 2px 0; animation: rise .3s var(--ease) both; }
+  .countdown { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-variant-numeric: tabular-nums;
+               padding: 3px 10px; border-radius: 999px; background: var(--chip); color: var(--ink); }
+  .countdown svg { width: 14px; height: 14px; }
+  .countdown.done { color: var(--muted); }
+
+  /* tentar de novo (só na última resposta) */
+  .retry { border: 0; background: none; color: var(--muted); width: 26px; height: 26px; border-radius: 8px; display: none;
+           place-items: center; align-self: flex-end; opacity: 0; flex: none;
+           transition: opacity .15s, background .15s, color .15s, transform .45s var(--spring); }
+  .row.last-reply .retry { display: grid; }
+  .row:hover .retry { opacity: 1; }
+  .retry:hover { background: var(--chip); color: var(--ink); transform: rotate(-140deg); }
+  .retry svg { width: 15px; height: 15px; }
+  @media (hover: none) { .retry { opacity: .7; } }
+  .row.retrying { opacity: .4; filter: blur(1.5px); transition: opacity .3s, filter .3s; }
+
+  /* "errou?" com a resposta certa */
+  #fbmodal .mic { background: color-mix(in srgb, var(--warn) 14%, var(--panel)); color: var(--warn); }
+  #fbmodal textarea { width: 100%; min-height: 78px; margin-top: 12px; border: 1px solid var(--line); border-radius: 10px;
+                      padding: 9px 11px; background: var(--panel-2); color: var(--ink); font: inherit; font-size: 14px;
+                      resize: vertical; outline: 0; }
+  #fbmodal textarea:focus { border-color: color-mix(in srgb, var(--ink) 45%, var(--line)); }
+  .qchips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .qchips button { border: 1px solid var(--line); background: var(--panel-2); border-radius: 999px; padding: 4px 11px;
+                   font-size: 12.5px; transition: border-color .15s, background .15s; }
+  .qchips button:hover { border-color: var(--ink); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .btn.primary:hover { opacity: .9; background: var(--accent); }
+
+  /* histórico: busca, fixar, renomear */
+  .hist-search { margin: 0 10px 4px; position: relative; }
+  .hist-search input { width: 100%; padding: 7px 10px 7px 32px; border-radius: 9px; border: 1px solid var(--line);
+                       background: var(--panel); color: var(--ink); font: inherit; font-size: 13.5px; outline: 0; transition: border-color .15s; }
+  .hist-search input:focus { border-color: color-mix(in srgb, var(--ink) 45%, var(--line)); }
+  .hist-search svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; color: var(--muted); }
+  .chat-item { padding-right: 10px; }
+  .chat-item > span:first-of-type { flex: 1; min-width: 0; }
+  .chat-item .acts { display: flex; gap: 1px; margin-left: 4px; opacity: 0; transition: opacity .15s; flex: none; }
+  .chat-item:hover .acts, .chat-item:focus-within .acts { opacity: 1; }
+  .chat-item .acts span, .chat-item .acts .del { position: static; transform: none; opacity: 1; width: 25px; height: 25px;
+                                                  display: grid; place-items: center; border-radius: 7px; color: var(--muted); }
+  .chat-item .acts span:hover { background: var(--line); color: var(--ink); }
+  .chat-item .acts .del:hover { color: var(--err); }
+  .chat-item .acts svg { width: 14px; height: 14px; }
+  .chat-item.pinned .acts .pin { color: var(--ink); }
+  .chat-item .pinmark { width: 12px; height: 12px; margin-right: 7px; color: var(--muted); flex: none; }
+  .chat-item input { flex: 1; min-width: 0; font: inherit; font-size: 14px; border: 1px solid var(--ink); border-radius: 6px;
+                     padding: 2px 6px; background: var(--panel); color: var(--ink); outline: 0; }
+  #chatlist mark { background: color-mix(in srgb, var(--warn) 35%, transparent); color: inherit; border-radius: 3px; }
+  @media (hover: none) { .chat-item .acts { opacity: .8; } }
+
+  /* app instalado / permissões */
+  .perm small { display: block; }
+  #installbtn[disabled] { opacity: .5; cursor: default; }
+
+  /* ---------- boas-vindas (primeira visita) */
+  #welcome { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 24px; background: var(--bg);
+             transition: opacity .6s var(--ease), visibility .6s; }
+  #welcome[hidden] { display: none; }
+  #welcome.out { opacity: 0; visibility: hidden; }
+  #welcome.out .wl-box { transform: scale(1.06); filter: blur(6px); }
+  .wl-box { width: min(440px, 100%); text-align: center; transition: transform .6s var(--ease), filter .6s var(--ease); }
+  .wl-logo { width: 84px; height: 84px; margin: 0 auto 26px; border-radius: 22px; background: var(--logo-bg); color: var(--logo-fg);
+             animation: wl-pop .7s var(--spring) both; }
+  .wl-logo svg { width: 100%; height: 100%; fill: currentColor; }
+  .wl-logo rect { transform-box: fill-box; }
+  .wl-logo .p1 { transform-origin: top; animation: wl-grow-y .5s var(--ease) .45s both; }
+  .wl-logo .p2 { transform-origin: left; animation: wl-grow-x .45s var(--ease) .8s both; }
+  .wl-logo .p3 { transform-origin: center; animation: wl-dot .5s var(--spring) 1.15s both, blink .9s steps(1) 2.2s 3; }
+  @keyframes wl-pop { from { opacity: 0; transform: scale(.4) rotate(-12deg); } }
+  @keyframes wl-grow-y { from { transform: scaleY(0); } }
+  @keyframes wl-grow-x { from { transform: scaleX(0); } }
+  @keyframes wl-dot { from { transform: scale(0); } }
+  #wl-t1 { margin: 0; font-size: clamp(24px, 4.2vw, 32px); font-weight: 650; letter-spacing: -.4px; min-height: 1.3em; }
+  #wl-t2 { margin: 8px 0 0; color: var(--muted); font-size: 17px; min-height: 1.5em; }
+  .caret { display: inline-block; width: 2px; height: 1em; margin-left: 2px; background: currentColor; vertical-align: -.12em;
+           animation: blink .9s steps(1) infinite; }
+  #wl-form { display: flex; gap: 8px; margin: 26px auto 0; max-width: 360px; padding: 6px 6px 6px 16px; border-radius: 16px;
+             background: var(--panel); border: 1px solid var(--line); box-shadow: var(--shadow); opacity: 0; transform: translateY(10px);
+             transition: opacity .5s var(--ease), transform .5s var(--spring), border-color .2s; }
+  #wl-form.show { opacity: 1; transform: none; }
+  #wl-form:focus-within { border-color: color-mix(in srgb, var(--ink) 45%, var(--line)); }
+  #wl-form input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font: inherit; font-size: 16px; }
+  #wl-form button { display: flex; align-items: center; gap: 6px; border: 0; border-radius: 11px; padding: 9px 14px;
+                    background: var(--accent); color: var(--accent-ink); font-weight: 600; transition: transform .2s var(--spring), opacity .2s; }
+  #wl-form button:disabled { opacity: .35; cursor: default; }
+  #wl-form button:not(:disabled):hover { transform: translateX(2px); }
+  #wl-form button svg { width: 16px; height: 16px; }
+  #wl-form.shake { animation: shake .4s var(--ease); }
+  .wl-alt { display: flex; justify-content: center; gap: 10px; margin-top: 14px; opacity: 0; transition: opacity .5s var(--ease) .15s; }
+  .wl-alt.show { opacity: 1; }
+  .wl-alt button { border: 0; background: none; color: var(--muted); font-size: 13.5px; padding: 6px 10px; border-radius: 9px;
+                   transition: color .15s, background .15s; }
+  .wl-alt button:hover { color: var(--ink); background: var(--chip); }
+  .wl-alt .google { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); color: var(--ink); }
+  .wl-alt .google[hidden] { display: none; }
+  .wl-hi { animation: wl-hi .5s var(--spring) both; }
+  @keyframes wl-hi { from { opacity: 0; transform: translateY(8px) scale(.96); } }
+  #profname { flex: 1; min-width: 0; padding: 7px 10px; border-radius: 10px; border: 1px solid var(--line);
+              background: var(--panel-2); color: var(--ink); font: inherit; font-size: 14px; outline: 0; }
+  #profname:focus { border-color: color-mix(in srgb, var(--ink) 45%, var(--line)); }
+
   @media (max-width: 900px) {
     #history { position: fixed; top: 0; bottom: 0; left: 0; box-shadow: var(--shadow); }
     body:not(.hist-open) #history { margin-left: -268px; }
@@ -290,6 +511,7 @@
     <button class="icon-btn" id="histclose" title="Fechar painel (Ctrl+B)" aria-label="Fechar painel"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 4v16M15 10l-2 2 2 2"/></svg></button>
   </div>
   <button class="new-btn" id="newchat2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Nova conversa</button>
+  <div class="hist-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="histq" type="search" placeholder="Buscar conversas" aria-label="Buscar conversas"></div>
   <div id="chatlist"></div>
   <div class="hist-foot">Salvas só neste computador.</div>
 </aside>
@@ -300,7 +522,7 @@
     <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 4v16"/></svg>
   </button>
   <div class="avatar" id="hlogo"><svg viewBox="0 0 64 64" aria-hidden="true"><rect x="18" y="14" width="10" height="36"/><rect x="18" y="40" width="28" height="10"/><rect x="36" y="24" width="10" height="10"/></svg></div>
-  <div class="title"><b>Lia</b><small><span id="status">conectando...</span></small></div>
+  <div class="title"><b>Lia</b><small><i class="dot" id="dot"></i><span id="status">conectando...</span></small></div>
   <button class="icon-btn" id="newchat" title="Nova conversa (Ctrl+Shift+O)" aria-label="Nova conversa">
     <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
   </button>
@@ -312,6 +534,7 @@
 <main id="scroller">
   <div id="log"></div>
 </main>
+<button id="tobottom" aria-label="Ir para a última mensagem" title="Ir para o fim"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg><i></i></button>
 
 <footer>
   <form id="form">
@@ -329,6 +552,8 @@
   <div class="head"><h3>Configurações</h3>
     <button class="icon-btn" id="close" aria-label="Fechar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
   </div>
+  <h4>Perfil</h4>
+  <div class="row2"><input id="profname" maxlength="40" placeholder="Como a Lia te chama" aria-label="Como a Lia te chama" autocomplete="given-name"><button class="mini" id="welcomeagain">Ver boas-vindas</button></div>
   <h4>Comportamento</h4>
   <label><span>Executar sem perguntar<small>abre apps e sites direto, sem confirmação</small></span><input type="checkbox" class="switch" id="auto"></label>
   <div style="padding:8px 0">
@@ -336,20 +561,89 @@
     <input type="range" id="temp" min="0" max="1.2" step="0.1">
     <div class="range-labels"><span>certinha</span><span>solta</span></div>
   </div>
-  <h4>Avisos</h4>
-  <label><span>Ler respostas em voz alta</span><input type="checkbox" class="switch" id="voice"></label>
-  <label><span>Notificação do Windows<small>lembretes aparecem mesmo com a janela minimizada</small></span><input type="checkbox" class="switch" id="notif"></label>
+  <div class="row2"><span>Perguntar antes de</span></div>
+  <div id="permlist"></div>
+  <label><span>Enter envia<small>desligado: Enter quebra linha e Ctrl+Enter envia</small></span><input type="checkbox" class="switch" id="enter"></label>
   <h4>Aparência</h4>
   <div class="seg" id="theme">
     <button data-v="auto">Automático</button><button data-v="light">Claro</button><button data-v="dark">Escuro</button>
   </div>
+  <div class="row2"><span>Animações</span></div>
+  <div class="seg" id="motion"><button data-v="full">Completas</button><button data-v="soft">Suaves</button><button data-v="off">Desligadas</button></div>
+  <div class="row2"><span>Tamanho do texto</span></div>
+  <div class="seg" id="fsize"><button data-v="14px">Pequeno</button><button data-v="15px">Médio</button><button data-v="16.5px">Grande</button></div>
+  <div class="row2"><span>Largura da conversa</span></div>
+  <div class="seg" id="width"><button data-v="660px">Compacta</button><button data-v="780px">Normal</button><button data-v="980px">Larga</button></div>
+  <label><span>Efeito de digitação<small>as palavras aparecem com um leve desfoque</small></span><input type="checkbox" class="switch" id="typing"></label>
+  <label><span>Mostrar horário das mensagens</span><input type="checkbox" class="switch" id="times"></label>
+  <label><span>Botão "errou?"<small>marca respostas erradas para o próximo treino</small></span><input type="checkbox" class="switch" id="fbtoggle"></label>
+  <h4>Som e voz</h4>
+  <label><span>Som ao responder</span><input type="checkbox" class="switch" id="sound"></label>
+  <label><span>Ler respostas em voz alta</span><input type="checkbox" class="switch" id="voice"></label>
+  <div class="row2"><select id="vozsel" aria-label="Voz"></select><button class="mini" id="voztest">Ouvir</button></div>
+  <div style="padding:4px 0 8px">
+    <div style="display:flex;justify-content:space-between"><span>Velocidade da voz</span><small id="vozvelval" style="color:var(--muted)"></small></div>
+    <input type="range" id="vozvel" min="0.7" max="1.5" step="0.1">
+  </div>
+  <label><span>Notificação do navegador<small>lembretes aparecem mesmo com a janela minimizada</small></span><input type="checkbox" class="switch" id="notif"></label>
+  <h4>Lembretes ativos</h4>
+  <ul class="mem" id="remlist"></ul>
+  <h4>O que a Lia sabe de você</h4>
+  <ul class="mem" id="factlist"></ul>
+  <div class="row2"><span></span><button class="mini danger" id="factclear">Esquecer tudo</button></div>
+  <h4>Suas notas</h4>
+  <ul class="mem" id="notelist"></ul>
+  <div class="row2"><span></span><button class="mini danger" id="noteclear">Apagar todas</button></div>
   <h4>Conversas</h4>
+  <div class="row2"><span>Exportar esta conversa</span><button class="mini" id="exptxt">.txt</button><button class="mini" id="expjson">.json</button></div>
   <label><span>Apagar todo o histórico<small>remove as conversas salvas neste computador</small></span><button class="icon-btn" id="clearall" aria-label="Apagar histórico" title="Apagar histórico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M5 7l1 13h12l1-13M9 7V4h6v3"/></svg></button></label>
+  <h4>App</h4>
+  <div class="row2"><span>Instalar a Lia como app<small id="installinfo" style="display:block;color:var(--muted);font-size:12.5px"></small></span><button class="mini" id="installbtn">Instalar</button></div>
+  <h4>Atalhos</h4>
+  <div class="keys">
+    <span><kbd>Ctrl</kbd>+<kbd>B</kbd></span><span>mostrar/esconder conversas</span>
+    <span><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd></span><span>nova conversa</span>
+    <span><kbd>↑</kbd></span><span>repete a última mensagem</span>
+    <span><kbd>Esc</kbd></span><span>fecha painéis / cancela ação</span>
+  </div>
   <h4>O que eu sei fazer</h4>
   <ul id="toollist"></ul>
+  <h4>Sobre</h4>
+  <div class="about" id="about">carregando...</div>
 </aside>
 
 <div id="toast" role="status"></div>
+<div id="welcome" hidden>
+  <div class="wl-box">
+    <div class="wl-logo"><svg viewBox="0 0 64 64" aria-hidden="true"><rect class="p1" x="18" y="14" width="10" height="36"/><rect class="p2" x="18" y="40" width="28" height="10"/><rect class="p3" x="36" y="24" width="10" height="10"/></svg></div>
+    <h1 id="wl-t1"></h1>
+    <p id="wl-t2"></p>
+    <form id="wl-form" autocomplete="off">
+      <input id="wl-name" maxlength="40" placeholder="Seu nome" aria-label="Seu nome" autocomplete="given-name">
+      <button id="wl-go" disabled>Continuar <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+    </form>
+    <div class="wl-alt">
+      <button class="google" id="wl-google" hidden><svg width="16" height="16" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.5l6.7-6.7C35.6 2.4 30.2 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.8 6.1C12.4 13.7 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.6c0-1.6-.1-3.1-.4-4.6H24v9h12.4c-.5 2.9-2.2 5.3-4.6 6.9l7.4 5.8c4.3-4 6.9-9.9 6.9-17.1z"/><path fill="#FBBC05" d="M10.5 28.6c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.8-6.1C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.4-5.8c-2.1 1.4-4.8 2.3-8.5 2.3-6.3 0-11.6-4.2-13.5-10l-7.8 6.1C6.6 42.6 14.6 48 24 48z"/></svg>Entrar com Google</button>
+      <button id="wl-skip">Agora não</button>
+    </div>
+  </div>
+</div>
+<div class="modal" id="fbmodal" hidden>
+  <div class="box" role="dialog" aria-modal="true" aria-labelledby="fbtitle">
+    <div class="mic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></div>
+    <h3 id="fbtitle">O que ela deveria ter feito?</h3>
+    <p>Opcional, mas ajuda muito no próximo treino.</p>
+    <div class="qchips">
+      <button data-t="era só conversa, sem ferramenta">era só conversa</button>
+      <button data-t="não era pra guardar na memória">não era pra guardar</button>
+      <button data-t="ferramenta errada, era: ">ferramenta errada</button>
+      <button data-t="copiou errado, era: ">copiou errado</button>
+      <button data-t="resposta sem sentido">resposta sem sentido</button>
+    </div>
+    <textarea id="fbtext" placeholder="Ex.: era pra abrir a pasta Imagens"></textarea>
+    <div class="mbtns"><button class="btn" id="fbskip">Só marcar</button><button class="btn primary" id="fbsave">Guardar</button></div>
+  </div>
+</div>
 <div id="snack" role="status"><span id="snacktext"></span><button id="snackbtn">Desfazer</button></div>
 <div class="modal" id="modal" hidden>
   <div class="box" role="alertdialog" aria-modal="true" aria-labelledby="mtitle" aria-describedby="mbody">
@@ -386,6 +680,12 @@ const ICONS = {
   check: '<path d="m5 12 5 5 9-10"/>',
   x: '<path d="M6 6l12 12M18 6 6 18"/>',
   trash: '<path d="M4 7h16M10 11v6M14 11v6M5 7l1 13h12l1-13M9 7V4h6v3"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  rain: '<path d="M7 15h10a4 4 0 0 0 .5-8A6 6 0 0 0 6 6.5 4.3 4.3 0 0 0 7 15z"/><path d="m8 18-1 3M12 18l-1 3M16 18l-1 3"/>',
+  storm: '<path d="M7 15h10a4 4 0 0 0 .5-8A6 6 0 0 0 6 6.5 4.3 4.3 0 0 0 7 15z"/><path d="m12.5 15-2 3.5h3L11.5 22"/>',
+  retry: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
+  pin: '<path d="M9 4h6l-1 6 4 4H6l4-4z"/><path d="M12 14v6"/>',
+  book: '<path d="M4 5a2 2 0 0 1 2-2h13v15H6a2 2 0 0 0-2 2z"/><path d="M4 20a2 2 0 0 0 2 2h13v-4"/>',
 };
 const ICON = (n) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n] || ICONS.gear}</svg>`;
 const LABELS = {
@@ -394,7 +694,7 @@ const LABELS = {
   calcular: ["calc", "Calcular"], lembrete: ["alarm", "Criar lembrete"], anotar: ["pencil", "Anotar"],
   ver_notas: ["notes", "Ler notas"], lembrar: ["save", "Guardar na memória"], recordar: ["recall", "Consultar memória"],
   volume: ["volume", "Volume"], midia: ["media", "Mídia"], abrir_pasta: ["folder", "Abrir pasta"], clima: ["cloud", "Clima"],
-  bloquear: ["lock", "Bloquear tela"],
+  bloquear: ["lock", "Bloquear tela"], consultar: ["book", "Consultar a Wikipédia"],
 };
 const SUGGESTIONS = [
   ["app", "abre o spotify"], ["alarm", "me lembra de beber água em 20 minutos"], ["calc", "quanto é 15% de 200?"],
@@ -414,13 +714,28 @@ function api(path, body) {
     headers: { "Content-Type": "application/json", "X-Token": TOKEN },
     body: body === undefined ? undefined : JSON.stringify(body) });
 }
-function scroll() { const s = $("scroller"); s.scrollTop = s.scrollHeight; }
+const scroller = $("scroller");
+let stick = true, lastTop = 0;
+function scroll(force) {
+  if (force) stick = true;
+  if (stick) { scroller.scrollTop = scroller.scrollHeight; $("tobottom").classList.remove("new"); }
+  else $("tobottom").classList.add("new");
+}
+scroller.addEventListener("scroll", () => {
+  const near = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 60;
+  if (near) stick = true; else if (scroller.scrollTop < lastTop - 2) stick = false;  // só você rolando pra cima solta
+  lastTop = scroller.scrollTop;
+  $("tobottom").classList.toggle("show", !near);
+  if (near) $("tobottom").classList.remove("new");
+});
+$("tobottom").onclick = () => { stick = true; scroller.scrollTo({ top: scroller.scrollHeight, behavior: "smooth" }); };
 const now = () => new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
 // ---------- tela inicial
 function greeting() {
   const h = new Date().getHours();
-  return h < 5 ? "Ainda acordado?" : h < 12 ? "Bom dia!" : h < 18 ? "Boa tarde!" : "Boa noite!";
+  const base = h < 5 ? "Ainda acordado?" : h < 12 ? "Bom dia!" : h < 18 ? "Boa tarde!" : "Boa noite!";
+  return userName ? base.replace(/([!?])$/, `, ${userName}$1`) : base;
 }
 function showEmpty() {
   log.innerHTML = ""; log.classList.remove("restored");
@@ -453,32 +768,152 @@ function addMsg(role, text, extra) {
   const m = document.createElement("div");
   m.className = "msg" + (extra ? " " + extra : ""); m.textContent = text || "";
   const t = document.createElement("span"); t.className = "time"; t.textContent = now();
-  if (role === "user") r.append(t, m);
+  if (role === "user") { r.append(t, m); scroll(true); save(); return m; }
   else if (extra === "alert") r.append(m, t);
   else {  // "errou?": guarda a conversa para revisar e virar exemplo de treino
     const fb = document.createElement("button");
     fb.className = "fb"; fb.textContent = "errou?"; fb.title = "Marcar esta resposta como errada (guarda para o próximo treino)";
-    r.append(m, t, fb);
+    const rb = document.createElement("button");
+    rb.className = "retry"; rb.title = "Tentar de novo (outra resposta)"; rb.setAttribute("aria-label", "Tentar de novo"); rb.innerHTML = ICON("retry");
+    r.append(m, t, fb, rb);
   }
   scroll(); save(); return m;
 }
+// ---------- cartões ricos, desfazer, tentar de novo
+function parseDur(t) {  // "1 hora e 30 minutos" -> segundos
+  let s = 0;
+  for (const [, n, u] of t.matchAll(/(\d+)\s*(hora|minuto|segundo)/g)) s += +n * (u === "hora" ? 3600 : u === "minuto" ? 60 : 1);
+  return s;
+}
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function richify(card, v, ev) {
+  const tool = card.dataset.tool, box = el("div", "rich");
+  if (tool === "clima") {
+    const m = v.match(/^(.*?):\s*(-?\d+)°C,\s*(.*?),\s*máx\s*(-?\d+)°C,\s*mín\s*(-?\d+)°C,\s*chuva\s*(\d+)%/);
+    if (!m) return;
+    const c = m[3].toLowerCase();
+    const ic = /trovoada|tempestade/.test(c) ? "storm" : /chuva|garoa|aguaceiro/.test(c) ? "rain"
+             : /limpo|sol/.test(c) && !/nublado/.test(c) ? "sun" : "cloud";
+    const wx = el("div", "wx"), info = el("div", "info");
+    wx.innerHTML = ICON(ic);
+    info.append(el("b", null, m[1]), document.createElement("br"),
+                `${m[3]} · ↑${m[4]}° ↓${m[5]}° · chuva ${m[6]}%`);
+    wx.append(el("div", "temp", m[2] + "°"), info);
+    box.append(wx);
+  } else if (tool === "calcular") {
+    box.append(el("div", "calc-big", v));
+  } else if (tool === "ver_notas" && !/nenhuma nota/.test(v)) {
+    const ul = el("ul", "notes-list");
+    v.split("; ").forEach((n, i) => { const li = el("li", null, n); li.style.animationDelay = i * 40 + "ms"; ul.append(li); });
+    box.append(ul);
+  } else if (tool === "lembrete" && ev?.undo) {  // só lembrete de verdade (no modo simulado ele não é agendado)
+    const m = v.match(/^em (.*?):/);
+    const secs = m ? parseDur(m[1]) : 0;
+    if (!secs) return;
+    const cd = el("span", "countdown");
+    cd.dataset.ate = Date.now() + secs * 1000;
+    cd.innerHTML = ICON("clock"); cd.append(el("span"));
+    box.append(cd); tickCountdowns();
+  } else return;
+  card.appendChild(box);
+}
+const fmtLeft = (s) => s >= 3600 ? `${Math.floor(s / 3600)}h${String(Math.floor(s % 3600 / 60)).padStart(2, "0")}`
+                                 : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+function tickCountdowns() {
+  log.querySelectorAll(".countdown[data-ate]").forEach((c) => {
+    const left = Math.round((+c.dataset.ate - Date.now()) / 1000), t = c.lastElementChild;
+    if (c.classList.contains("cancel")) return;
+    if (left > 0) t.textContent = "faltam " + fmtLeft(left);
+    else { t.textContent = "já tocou"; c.classList.add("done"); c.removeAttribute("data-ate"); }
+  });
+}
+setInterval(tickCountdowns, 1000);
+function addUndo(card, u) {
+  const b = el("button", "undo", u.rotulo);
+  b.dataset.tipo = u.tipo; b.dataset.ref = u.ref;
+  b.title = u.tipo === "fato" ? "Tirar isso da memória" : u.tipo === "nota" ? "Apagar essa nota" : "Cancelar esse lembrete";
+  card.querySelector(".st").after(b);
+}
+let retryOld = null;
+function markLast() {
+  log.querySelectorAll(".row.last-reply").forEach((r) => r.classList.remove("last-reply"));
+  const last = log.lastElementChild;
+  if (last?.classList.contains("bot") && last.querySelector(".retry")) last.classList.add("last-reply");
+}
+function dropRetry() {
+  if (!retryOld) return;
+  retryOld.remove(); retryOld = null;
+  const l = log.lastElementChild?.classList;
+  lastRole = l?.contains("user") ? "user" : l ? "bot" : null;
+}
+function retry(r) {
+  if (busy || pendingCard || !r.classList.contains("last-reply")) return;
+  retryOld = r; r.classList.add("retrying");
+  stream("/api/retry", {});
+}
+
+// "errou?": pergunta (opcional) o que ela deveria ter feito
+let fbOpen = false;
+function fbAsk() {
+  return new Promise((resolve) => {
+    const m = $("fbmodal"), ta = $("fbtext");
+    ta.value = ""; m.hidden = false; m.classList.remove("closing"); fbOpen = true;
+    setTimeout(() => ta.focus(), 30);
+    const done = (v) => {
+      document.removeEventListener("keydown", onKey, true);
+      m.classList.add("closing"); fbOpen = false;
+      setTimeout(() => { m.hidden = true; m.classList.remove("closing"); }, 160);
+      input.focus(); resolve(v);
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); done(null); }
+      else if (e.key === "Enter" && e.ctrlKey) { e.preventDefault(); done(ta.value.trim()); }
+    };
+    document.addEventListener("keydown", onKey, true);
+    $("fbsave").onclick = () => done(ta.value.trim());
+    $("fbskip").onclick = () => done("");
+    m.onclick = (e) => { if (e.target === m) done(null); };
+    m.querySelectorAll(".qchips button").forEach((b) => b.onclick = () => {
+      ta.value = (ta.value ? ta.value.replace(/\s*$/, "; ") : "") + b.dataset.t; ta.focus();
+      ta.setSelectionRange(ta.value.length, ta.value.length);
+    });
+  });
+}
+
 // um ouvinte só, para valer também nas conversas reabertas do histórico
 log.addEventListener("click", async (e) => {
+  const u = e.target.closest(".tool .undo");
+  if (u) {
+    u.disabled = true;
+    try {
+      const r = await (await api("/api/desfazer", { tipo: u.dataset.tipo, ref: u.dataset.ref })).json();
+      const card = u.closest(".tool");
+      card.classList.add("undone");
+      const cd = card.querySelector(".countdown");
+      if (cd) { cd.classList.add("done", "cancel"); cd.lastElementChild.textContent = "cancelado"; }
+      u.replaceWith(el("span", "undone-msg", r.msg));
+      save();
+    } catch (err) { u.disabled = false; snack("Não consegui desfazer agora."); }
+    return;
+  }
+  const rt = e.target.closest(".retry");
+  if (rt) return retry(rt.closest(".row"));
   const fb = e.target.closest(".fb");
   if (!fb || fb.classList.contains("done")) return;
+  const esperado = await fbAsk();
+  if (esperado === null) return;
   try {
-    await api("/api/feedback", {});
+    await api("/api/feedback", { esperado });
     fb.classList.add("done"); fb.textContent = "marcado"; save();
-    snack("Guardei essa conversa pra revisar no próximo treino.", async () => {
-      await api("/api/feedback", { undo: true });
-      fb.classList.remove("done"); fb.textContent = "errou?"; save();
-    });
-  } catch (err) { snack("Não consegui guardar agora.", () => {}); }
+    snack(esperado ? "Guardei o erro e o que ela deveria ter feito." : "Guardei essa conversa pra revisar no próximo treino.",
+          async () => { await api("/api/feedback", { undo: true }); fb.classList.remove("done"); fb.textContent = "errou?"; save(); });
+  } catch (err) { snack("Não consegui guardar agora."); }
 });
-function showThinking() {
+function showThinking(label) {
   const r = row("bot");
   r.classList.add("thinking");
-  r.insertAdjacentHTML("beforeend", '<div class="msg"><span class="dots"><i></i><i></i><i></i></span></div>');
+  r.insertAdjacentHTML("beforeend", '<div class="msg think"><span class="dots"><i></i><i></i><i></i></span><span class="shim"></span></div>');
+  r.querySelector(".shim").textContent = label || "pensando";
   thinking = r; scroll();
 }
 function clearThinking() {
@@ -489,13 +924,25 @@ function clearThinking() {
 }
 function setBusy(b) {
   busy = b; sendBtn.disabled = b || !input.value.trim();
-  $("hlogo").classList.toggle("busy", b);
+  $("hlogo").classList.toggle("busy", b); $("form").classList.toggle("busy", b);
 }
-function speak(text) {
-  if (!$("voice").checked || !window.speechSynthesis) return;
-  const u = new SpeechSynthesisUtterance(text); u.lang = "pt-BR";
-  const v = speechSynthesis.getVoices().find((v) => v.lang.startsWith("pt")); if (v) u.voice = v;
+function speak(text, force) {
+  if ((!force && !$("voice").checked) || !window.speechSynthesis) return;
+  const u = new SpeechSynthesisUtterance(text); u.lang = "pt-BR"; u.rate = parseFloat($("vozvel").value) || 1;
+  const vs = speechSynthesis.getVoices();
+  const v = vs.find((x) => x.name === $("vozsel").value) || vs.find((x) => x.lang.startsWith("pt")); if (v) u.voice = v;
   speechSynthesis.cancel(); speechSynthesis.speak(u);
+}
+let audio;
+function blip(freq) {  // "plim" curtinho feito na hora, sem arquivo de som
+  if (!$("sound").checked) return;
+  try {
+    audio = audio || new AudioContext();
+    const o = audio.createOscillator(), g = audio.createGain(), t = audio.currentTime, f = freq || 660;
+    o.type = "sine"; o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * 1.5, t + .09);
+    g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.12, t + .02); g.gain.exponentialRampToValueAtTime(.0001, t + .25);
+    o.connect(g).connect(audio.destination); o.start(t); o.stop(t + .26);
+  } catch (e) {}
 }
 
 // ---------- ferramentas (linha compacta)
@@ -504,7 +951,7 @@ function addCard(ev) {
   const [icon, label] = LABELS[ev.tool] || ["gear", ev.tool];
   const r = row("bot");
   const card = document.createElement("div");
-  card.className = "tool wait";
+  card.className = "tool wait"; card.dataset.tool = ev.tool;
   card.innerHTML = `<span class="ti">${ICON(icon)}</span><span class="what"></span><span class="arg"></span>` +
                    `<span class="out"></span><span class="st">${SPIN}</span>`;
   card.querySelector(".what").textContent = label;
@@ -520,39 +967,50 @@ function askConfirm(card) {
   const box = document.createElement("div"); box.className = "actions";
   const yes = document.createElement("button"), no = document.createElement("button"), hint = document.createElement("small");
   yes.className = "yes"; yes.textContent = "Executar"; no.className = "no"; no.textContent = "Cancelar";
+  const always = document.createElement("button");
+  always.className = "always"; always.textContent = "Sempre permitir"; always.title = "Executa agora e não pergunta mais para esse tipo de ação";
   hint.textContent = "Esc cancela";
-  const answer = (approve) => {
+  const answer = (approve, sempre) => {
     box.remove(); pendingCard = null;
     card.classList.replace("ask", "wait"); card.querySelector(".st").innerHTML = SPIN;
-    stream("/api/confirm", { approve });
+    if (sempre) setPerm(card.dataset.tool, true);
+    stream("/api/confirm", { approve, sempre: !!sempre });
   };
-  yes.onclick = () => answer(true); no.onclick = () => answer(false);
-  box.append(yes, no, hint); card.appendChild(box); yes.focus(); scroll();
+  yes.onclick = () => answer(true); no.onclick = () => answer(false); always.onclick = () => answer(true, true);
+  box.append(yes, always, no, hint); card.appendChild(box); yes.focus(); scroll();
   card._answer = answer;
 }
-function setResult(card, text) {
+function setResult(card, text, ev) {
   if (!card) return;
   const ok = text.startsWith("ok"), off = text.startsWith("cancelado");
   card.classList.remove("wait", "ask");
   card.classList.add(ok ? "ok" : off ? "off" : "err");
-  card.querySelector(".out").textContent = text.replace(/^(ok|erro|cancelado):\s*/, "");
+  // Wikipédia: o cartão mostra só o título do artigo (o resumo já vem na resposta dela)
+  card.querySelector(".out").textContent = (ok && ev?.titulo) || text.replace(/^(ok|erro|cancelado):\s*/, "");
   card.querySelector(".st").innerHTML = ICON(ok ? "check" : "x");
+  if (ok) richify(card, text.replace(/^ok:\s*/, ""), ev);
+  if (ok && ev?.link) {  // versão web: link para abrir, caso o navegador bloqueie a aba nova
+    const a = document.createElement("a");
+    a.className = "openlink"; a.href = ev.link; a.target = "_blank"; a.rel = "noopener noreferrer"; a.textContent = ev.titulo ? "ler o artigo ↗" : "abrir ↗";
+    card.querySelector(".out").after(a);
+  }
+  if (ev?.undo) addUndo(card, ev.undo);
   scroll(); save();
 }
 
 // ---------- eventos do servidor
 function handle(ev) {
   if (ev.type === "token") {
-    clearThinking();
+    clearThinking(); dropRetry();
     if (!bubble) bubble = addMsg("bot", "", "typing");
     const sp = document.createElement("span"); sp.className = "tk"; sp.textContent = ev.text;
     bubble.appendChild(sp); scroll();
   } else if (ev.type === "text") {
-    clearThinking();
+    clearThinking(); dropRetry();
     if (!bubble) bubble = addMsg("bot", "");
     bubble.classList.remove("typing");
     if (bubble.textContent.trim() !== ev.text.trim()) bubble.textContent = ev.text;
-    bubble = null; speak(ev.text); save();
+    bubble = null; speak(ev.text); blip(); markLast(); save();
   } else if (ev.type === "call") {
     clearThinking();
     if (bubble) { bubble.classList.remove("typing"); bubble = null; }
@@ -560,14 +1018,14 @@ function handle(ev) {
   } else if (ev.type === "confirm") {
     askConfirm(lastCard);
   } else if (ev.type === "result") {
-    setResult(lastCard, ev.text);
-    showThinking();
+    setResult(lastCard, ev.text, ev);
+    showThinking("lendo o resultado");
   }
 }
 
 async function stream(path, body) {
   setBusy(true);
-  if (!thinking && !pendingCard && path === "/api/chat") showThinking();
+  if (!thinking && !pendingCard && (path === "/api/chat" || path === "/api/retry")) showThinking();
   try {
     const res = await api(path, body);
     if (!res.ok) throw new Error("HTTP " + res.status);
@@ -590,7 +1048,9 @@ async function stream(path, body) {
   } finally {
     clearThinking();
     if (bubble) bubble.classList.remove("typing");
-    bubble = null; setBusy(false); save(); syncTurns();
+    bubble = null; setBusy(false);
+    if (retryOld) { retryOld.classList.remove("retrying"); retryOld = null; snack("Aqui não dá pra tentar de novo."); }
+    markLast(); save(); syncTurns();
     if (!pendingCard) input.focus();
   }
 }
@@ -603,6 +1063,7 @@ function send(text) {
     setResult(pendingCard, "cancelado: mensagem nova"); pendingCard = null;
   }
   lastSent = text;
+  sendBtn.classList.remove("fly"); void sendBtn.offsetWidth; sendBtn.classList.add("fly");
   addMsg("user", text);
   input.value = ""; input.style.height = ""; sendBtn.disabled = true;
   stream("/api/chat", { text });
@@ -650,29 +1111,70 @@ function groupOf(t) {
   const diff = Math.round((today - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 864e5);
   return diff <= 0 ? "Hoje" : diff === 1 ? "Ontem" : diff < 7 ? "Últimos 7 dias" : "Mais antigas";
 }
+const textCache = new Map();
+function chatText(c) {  // texto da conversa (para a busca), guardado em memória
+  const k = c.id + ":" + c.updated;
+  if (!textCache.has(k)) { const d = document.createElement("div"); d.innerHTML = c.html || ""; textCache.set(k, (d.textContent || "").toLowerCase()); }
+  return textCache.get(k);
+}
+function highlight(node, text, q) {
+  const i = q ? text.toLowerCase().indexOf(q) : -1;
+  if (i < 0) { node.textContent = text; return; }
+  const m = document.createElement("mark"); m.textContent = text.slice(i, i + q.length);
+  node.append(text.slice(0, i), m, text.slice(i + q.length));
+}
 function renderHistory() {
   const box = $("chatlist"); box.innerHTML = "";
   if (!chats.length) { box.innerHTML = '<div class="hist-empty">Suas conversas aparecem aqui.</div>'; return; }
+  const q = $("histq").value.trim().toLowerCase();
+  let list = chats.slice().sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || b.updated - a.updated);
+  if (q) list = list.filter((c) => c.title.toLowerCase().includes(q) || chatText(c).includes(q));
+  if (!list.length) { box.innerHTML = '<div class="hist-empty">Nada encontrado.</div>'; return; }
   let group = null;
-  for (const c of chats) {
-    const g = groupOf(c.updated);
+  for (const c of list) {
+    const g = c.pinned ? "Fixadas" : groupOf(c.updated);
     if (g !== group) { const h = document.createElement("h5"); h.textContent = group = g; box.appendChild(h); }
     const b = document.createElement("button");
-    b.className = "chat-item" + (c.id === currentId ? " on" : "") + (shownIds.has(c.id) ? "" : " new");
+    b.className = "chat-item" + (c.id === currentId ? " on" : "") + (shownIds.has(c.id) ? "" : " new") + (c.pinned ? " pinned" : "");
     b.title = c.title;
-    b.innerHTML = `<span></span><span class="del" role="button" tabindex="0" aria-label="Apagar conversa" title="Apagar">${ICON("trash")}</span>`;
-    b.firstChild.textContent = c.title;
-    b.onclick = (e) => { if (e.target.closest(".del")) deleteChat(c.id); else openChat(c.id); };
+    b.innerHTML = `<span></span><span class="acts"><span class="pin" role="button" tabindex="0" title="${c.pinned ? "Desafixar" : "Fixar no topo"}">${ICON("pin")}</span>` +
+                  `<span class="ren" role="button" tabindex="0" title="Renomear">${ICON("pencil")}</span>` +
+                  `<span class="del" role="button" tabindex="0" aria-label="Apagar conversa" title="Apagar">${ICON("trash")}</span></span>`;
+    highlight(b.firstChild, c.title, q);
+    b.onclick = (e) => {
+      if (b.querySelector("input")) return;
+      if (e.target.closest(".del")) deleteChat(c.id);
+      else if (e.target.closest(".pin")) { c.pinned = !c.pinned; persist(); renderHistory(); }
+      else if (e.target.closest(".ren")) renameChat(c, b);
+      else openChat(c.id);
+    };
+    b.ondblclick = (e) => { if (!e.target.closest(".acts")) renameChat(c, b); };
     box.appendChild(b);
     shownIds.add(c.id);
   }
 }
+function renameChat(c, b) {
+  const inp = document.createElement("input");
+  inp.value = c.title; inp.setAttribute("aria-label", "Novo nome da conversa");
+  b.firstChild.replaceWith(inp); inp.focus(); inp.select();
+  let finished = false;
+  const finish = (ok) => {
+    if (finished) return; finished = true;
+    if (ok && inp.value.trim()) { c.title = inp.value.trim().slice(0, 80); persist(); }
+    renderHistory();
+  };
+  inp.onkeydown = (e) => { e.stopPropagation(); if (e.key === "Enter") finish(true); else if (e.key === "Escape") finish(false); };
+  inp.onblur = () => finish(true);
+  inp.onclick = (e) => e.stopPropagation();
+}
+$("histq").oninput = renderHistory;
+$("histq").onkeydown = (e) => { if (e.key === "Escape") { e.stopPropagation(); $("histq").value = ""; renderHistory(); } };
 function showChat(c) {
   log.innerHTML = c.html || ""; log.classList.add("restored");
   log.classList.remove("swap"); void log.offsetWidth; log.classList.add("swap");
   const last = log.lastElementChild?.classList;
   lastRole = last?.contains("user") ? "user" : last ? "bot" : null;
-  requestAnimationFrame(scroll);
+  markLast(); requestAnimationFrame(() => scroll(true));
 }
 async function openChat(id) {
   if (busy || id === currentId) return closeHistoryIfOverlay();
@@ -721,7 +1223,8 @@ function snack(text, onUndo) {
   const s = $("snack");
   $("snacktext").textContent = text; s.classList.add("show");
   clearTimeout(s._h); s._h = setTimeout(() => s.classList.remove("show"), 6000);
-  $("snackbtn").onclick = () => { s.classList.remove("show"); clearTimeout(s._h); onUndo(); };
+  $("snackbtn").style.display = onUndo ? "" : "none";
+  $("snackbtn").onclick = () => { s.classList.remove("show"); clearTimeout(s._h); onUndo?.(); };
 }
 async function deleteChat(id) {
   const c = chats.find((x) => x.id === id);
@@ -762,7 +1265,11 @@ $("histclose").onclick = () => toggleHistory(false);
 if (store.get("lia-painel") === "0") document.body.classList.add("hist-closed");
 
 // ---------- configurações
-function openSettings(open) { $("settings").classList.toggle("open", open); $("shade").classList.toggle("open", open); }
+function openSettings(open) {
+  const st = $("settings");
+  if (open) { [...st.children].forEach((el, i) => el.style.setProperty("--k", Math.min(i, 30))); loadMemory(); loadReminders(); }
+  st.classList.toggle("open", open); $("shade").classList.toggle("open", open);
+}
 $("gear").onclick = () => openSettings(!$("settings").classList.contains("open"));
 $("close").onclick = $("shade").onclick = () => openSettings(false);
 $("auto").onchange = () => api("/api/settings", { auto: $("auto").checked });
@@ -777,14 +1284,139 @@ $("notif").onchange = async () => {
   }
   store.set("notif", $("notif").checked ? "1" : "0");
 };
-function applyTheme(v, animate) {
+function applyTheme(v, animate, from) {
   const root = document.documentElement;
-  if (animate) { root.classList.add("theming"); setTimeout(() => root.classList.remove("theming"), 350); }
-  if (v === "auto") root.removeAttribute("data-theme"); else root.setAttribute("data-theme", v);
-  document.querySelectorAll("#theme button").forEach((b) => b.classList.toggle("on", b.dataset.v === v));
+  const set = () => {
+    if (v === "auto") root.removeAttribute("data-theme"); else root.setAttribute("data-theme", v);
+    document.querySelectorAll("#theme button").forEach((b) => b.classList.toggle("on", b.dataset.v === v));
+  };
   store.set("tema", v);
+  if (animate && from && document.startViewTransition && document.visibilityState === "visible" &&
+      (root.dataset.motion || "full") === "full") {
+    // o tema novo se espalha num círculo a partir do botão clicado
+    const r = from.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+    const end = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+    let done = false;
+    const setOnce = () => { if (!done) { done = true; set(); } };
+    const vt = document.startViewTransition(setOnce);
+    vt.ready.then(() => root.animate(
+      { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${end}px at ${x}px ${y}px)`] },
+      { duration: 550, easing: "cubic-bezier(.2,.8,.2,1)", pseudoElement: "::view-transition-new(root)" })).catch(() => {});
+    vt.finished.catch(() => {});
+    setTimeout(setOnce, 300);  // se a janela não desenhar a animação, o tema muda do mesmo jeito
+    setTimeout(() => vt.skipTransition(), 1200);  // e a tela nunca fica presa na transição
+    return;
+  }
+  if (animate) { root.classList.add("theming"); setTimeout(() => root.classList.remove("theming"), 350); }
+  set();
 }
-document.querySelectorAll("#theme button").forEach((b) => b.onclick = () => applyTheme(b.dataset.v, true));
+document.querySelectorAll("#theme button").forEach((b) => b.onclick = () => applyTheme(b.dataset.v, true, b));
+
+// opções guardadas neste computador
+function segPref(id, key, def, apply) {
+  const pick = (v) => {
+    document.querySelectorAll(`#${id} button`).forEach((b) => b.classList.toggle("on", b.dataset.v === v));
+    apply(v); store.set(key, v);
+  };
+  document.querySelectorAll(`#${id} button`).forEach((b) => b.onclick = () => pick(b.dataset.v));
+  pick(store.get(key) || def);
+}
+function switchPref(id, key, def, apply) {
+  const el = $(id), v = store.get(key);
+  el.checked = v === null ? def : v === "1";
+  el.onchange = () => { store.set(key, el.checked ? "1" : "0"); apply?.(el.checked); };
+  apply?.(el.checked);
+}
+const docRoot = document.documentElement;
+segPref("motion", "anim", "full", (v) => { docRoot.dataset.motion = v; });
+segPref("fsize", "fonte", "15px", (v) => { docRoot.style.setProperty("--fs", v); });
+segPref("width", "largura", "780px", (v) => { docRoot.style.setProperty("--chat-w", v); });
+switchPref("typing", "digitacao", true, (on) => { docRoot.dataset.typing = on ? "on" : "off"; });
+switchPref("times", "horarios", false, (on) => docRoot.classList.toggle("times", on));
+switchPref("fbtoggle", "errou", true, (on) => docRoot.classList.toggle("nofb", !on));
+switchPref("sound", "som", false);
+switchPref("enter", "enter", true, (on) => {
+  document.querySelector(".hint").innerHTML = on
+    ? "<kbd>Enter</kbd> envia · <kbd>Shift</kbd>+<kbd>Enter</kbd> quebra linha · <kbd>↑</kbd> repete a última"
+    : "<kbd>Ctrl</kbd>+<kbd>Enter</kbd> envia · <kbd>Enter</kbd> quebra linha · <kbd>↑</kbd> repete a última";
+});
+$("vozvel").value = store.get("vozvel") || "1";
+$("vozvelval").textContent = $("vozvel").value + "x";
+$("vozvel").oninput = () => { $("vozvelval").textContent = $("vozvel").value + "x"; store.set("vozvel", $("vozvel").value); };
+function loadVoices() {
+  const vs = (window.speechSynthesis?.getVoices() || []).filter((v) => v.lang.toLowerCase().startsWith("pt"));
+  const sel = $("vozsel"), want = store.get("vozsel");
+  sel.innerHTML = vs.length ? "" : "<option>nenhuma voz em português</option>";
+  vs.forEach((v) => { const o = document.createElement("option"); o.value = o.textContent = v.name; sel.appendChild(o); });
+  if (want && vs.some((v) => v.name === want)) sel.value = want;
+}
+loadVoices();
+if (window.speechSynthesis) speechSynthesis.onvoiceschanged = loadVoices;
+$("vozsel").onchange = () => store.set("vozsel", $("vozsel").value);
+$("voztest").onclick = () => speak("Oi! É assim que eu falo.", true);
+
+// memória, notas e lembretes (mostrar e apagar)
+const mmss = (s) => s >= 3600 ? `${Math.floor(s / 3600)}h${String(Math.floor(s % 3600 / 60)).padStart(2, "0")}`
+                              : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+function fillList(id, items, empty, onDel, extra) {
+  const ul = $(id); ul.innerHTML = "";
+  if (!items.length) { ul.innerHTML = `<div class="mem-empty">${empty}</div>`; return; }
+  items.forEach((txt, i) => {
+    const li = document.createElement("li");
+    li.style.animationDelay = Math.min(i, 12) * 25 + "ms";
+    li.innerHTML = `<span></span>${extra ? "<small></small>" : ""}<button aria-label="Apagar" title="Apagar">${ICON("x")}</button>`;
+    li.firstChild.textContent = txt;
+    if (extra) li.querySelector("small").textContent = extra(i);
+    li.querySelector("button").onclick = () => { li.classList.add("out"); setTimeout(() => onDel(i), 220); };
+    ul.appendChild(li);
+  });
+}
+function showMemory(m) {
+  fillList("factlist", m.fatos, "Nada guardado ainda. Conta algo, tipo “eu faço judô”.",
+           async (i) => showMemory(await (await api("/api/memoria", { tipo: "fatos", apagar: i })).json()));
+  fillList("notelist", m.notas, "Nenhuma nota. Tenta “anota aí: comprar pão”.",
+           async (i) => showMemory(await (await api("/api/memoria", { tipo: "notas", apagar: i })).json()));
+}
+async function loadMemory() { try { showMemory(await (await api("/api/memoria")).json()); } catch (e) {} }
+$("factclear").onclick = async () => {
+  if (await ask("Esquecer tudo sobre você?", "A Lia apaga todos os fatos guardados. Não dá para desfazer.", "Esquecer"))
+    showMemory(await (await api("/api/memoria", { tipo: "fatos", apagar: null })).json());
+};
+$("noteclear").onclick = async () => {
+  if (await ask("Apagar todas as notas?", "Todas as suas notas vão sumir. Não dá para desfazer.", "Apagar"))
+    showMemory(await (await api("/api/memoria", { tipo: "notas", apagar: null })).json());
+};
+let reminders = [];
+function showReminders() {
+  fillList("remlist", reminders.map((r) => r.texto === "o timer acabou" ? "Timer" : r.texto), "Nenhum lembrete agendado.",
+           async (i) => { reminders = await (await api("/api/lembretes", { cancelar: reminders[i].id })).json(); showReminders(); },
+           (i) => mmss(reminders[i].faltam));
+}
+async function loadReminders() { try { reminders = await (await api("/api/lembretes")).json(); showReminders(); } catch (e) {} }
+setInterval(() => {  // contagem regressiva enquanto os ajustes estão abertos
+  if (!$("settings").classList.contains("open") || !reminders.length) return;
+  reminders.forEach((r) => r.faltam = Math.max(0, r.faltam - 1));
+  $("remlist").querySelectorAll("li small").forEach((el, i) => { if (reminders[i]) el.textContent = mmss(reminders[i].faltam); });
+  if (reminders.some((r) => r.faltam === 0)) loadReminders();
+}, 1000);
+
+// exportar a conversa que está na tela
+function download(name, text, type) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function exportLines() {
+  return [...log.querySelectorAll(".row")].filter((r) => !r.classList.contains("thinking")).map((r) => {
+    const tool = r.querySelector(".tool");
+    if (tool) return { quem: "ferramenta", texto: [".what", ".arg", ".out"].map((q) => tool.querySelector(q)?.textContent).filter(Boolean).join(" · ") };
+    return { quem: r.classList.contains("user") ? "você" : NAME, texto: r.querySelector(".msg")?.textContent || "" };
+  });
+}
+const stamp = () => new Date().toISOString().slice(0, 16).replace(/[T:]/g, "-");
+$("exptxt").onclick = () => download(`lia-${stamp()}.txt`, exportLines().map((l) => `${l.quem}: ${l.texto}`).join("\n"), "text/plain");
+$("expjson").onclick = () => download(`lia-${stamp()}.json`, JSON.stringify(exportLines(), null, 2), "application/json");
+
 applyTheme(store.get("tema") || "auto");
 
 $("newchat").onclick = $("newchat2").onclick = newChat;
@@ -792,7 +1424,8 @@ $("newchat").onclick = $("newchat2").onclick = newChat;
 // ---------- teclado
 $("form").onsubmit = (e) => { e.preventDefault(); send(input.value); };
 input.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input.value); }
+  const enterSends = $("enter").checked;
+  if (e.key === "Enter" && (enterSends ? !e.shiftKey : e.ctrlKey)) { e.preventDefault(); send(input.value); }
   else if (e.key === "ArrowUp" && !input.value && lastSent) { e.preventDefault(); input.value = lastSent; input.dispatchEvent(new Event("input")); }
 });
 input.addEventListener("input", () => {
@@ -812,6 +1445,7 @@ document.addEventListener("keydown", (e) => {
 // ---------- conexão e informações
 function setOnline(on, text) {
   online = on;
+  $("dot").className = "dot " + (on ? "on" : "off");
   if (text) $("status").textContent = text;
 }
 async function loadInfo() {
@@ -819,7 +1453,12 @@ async function loadInfo() {
     const info = await (await api("/api/info")).json();
     setOnline(true, `${(info.params / 1e6).toFixed(1)}M parâmetros · ${info.apps} apps` + (info.simulado ? " · modo simulado" : ""));
     $("auto").checked = info.auto;
+    $("about").innerHTML = `Modelo com <b>${(info.params / 1e6).toFixed(1)} milhões</b> de parâmetros, treinado do zero ` +
+      `(passo ${info.iter}, perda ${Number(info.val_loss).toFixed(3)}).<br>Roda inteiro neste computador` +
+      (info.simulado ? " · <b>modo simulado</b>: nada é aberto de verdade." : ".");
     $("temp").value = info.temperature; $("tempval").textContent = info.temperature;
+    confirmTools = info.tools.filter((t) => t.confirm).map((t) => t.name);
+    renderPerms(); syncPerms();
     $("toollist").innerHTML = "";
     for (const t of info.tools) {
       const [icon, label] = LABELS[t.name] || ["gear", t.name];
@@ -836,7 +1475,7 @@ async function loadInfo() {
 function notifyReminder(text) {
   const t = $("toast"); t.textContent = "⏰ " + text; t.classList.add("show");
   clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 8000);
-  addMsg("bot", "⏰ Lembrete: " + text, "alert"); speak("Lembrete: " + text);
+  addMsg("bot", "⏰ Lembrete: " + text, "alert"); speak("Lembrete: " + text); blip(880);
   if ($("notif").checked && window.Notification?.permission === "granted") {
     try { new Notification(NAME + " · lembrete", { body: text, tag: "lia-" + Date.now() }); } catch (e) {}
   }
@@ -851,6 +1490,106 @@ setInterval(async () => {
   } catch (e) { if (online) setOnline(false, "sem conexão com o servidor"); }
 }, 4000);
 
+
+// ---------- permissões: quais ações perguntam antes
+let perms = new Set();
+try { perms = new Set(JSON.parse(store.get("permitidas") || "[]")); } catch (e) {}
+let confirmTools = [];
+function syncPerms() { api("/api/settings", { permitidas: [...perms] }).catch(() => {}); }
+function setPerm(tool, allowed) {
+  if (allowed) perms.add(tool); else perms.delete(tool);
+  store.set("permitidas", JSON.stringify([...perms])); syncPerms(); renderPerms();
+}
+function renderPerms() {
+  const box = $("permlist"); box.innerHTML = "";
+  confirmTools.forEach((t) => {
+    const [, label] = LABELS[t] || ["gear", t];
+    const lab = el("label", "perm"), txt = el("span", null, label), sw = el("input", "switch");
+    txt.append(el("small", null, perms.has(t) ? "faz direto, sem perguntar" : "pergunta antes"));
+    sw.type = "checkbox"; sw.checked = !perms.has(t);
+    sw.onchange = () => setPerm(t, !sw.checked);
+    lab.append(txt, sw); box.append(lab);
+  });
+}
+
+// ---------- app instalável (PWA)
+let installEvt = null;
+const standalone = matchMedia("(display-mode: standalone)").matches;
+function updInstall(done) {
+  const b = $("installbtn"), s = $("installinfo");
+  if (standalone || done) { b.disabled = true; b.textContent = "Instalada"; s.textContent = "A Lia já abre como app, com janela própria."; }
+  else if (installEvt) { b.disabled = false; s.textContent = "Janela própria e ícone na barra de tarefas."; }
+  else { b.disabled = true; s.textContent = "Se o botão não acender, use o menu do navegador › Instalar Lia."; }
+}
+window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt = e; updInstall(); });
+window.addEventListener("appinstalled", () => { installEvt = null; updInstall(true); });
+$("installbtn").onclick = async () => {
+  if (!installEvt) return;
+  installEvt.prompt(); await installEvt.userChoice; installEvt = null; updInstall();
+};
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+updInstall();
+
+
+// ---------- boas-vindas (primeira visita): "Bem-vindo à Lia AI. Como devo te chamar?"
+let userName = store.get("lia-nome") || "";
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const motionOff = () => (document.documentElement.dataset.motion || "full") === "off";
+async function typeText(node, text, ms) {  // escreve letra por letra, com cursor piscando
+  node.textContent = "";
+  if (motionOff()) { node.textContent = text; return; }
+  const caret = el("span", "caret"); node.append(caret);
+  for (const ch of text) { caret.before(ch); await sleep(".?!,".includes(ch) ? ms * 6 : ms + Math.random() * ms); }
+  await sleep(300); caret.remove();
+}
+async function setName(nome) {
+  userName = nome; store.set("lia-nome", nome); $("profname").value = nome;
+  if ($("empty")) $("empty").querySelector("h2").textContent = greeting();
+  try { await api("/api/perfil", { nome }); } catch (e) {}  // vira memória dela: "meu nome é ..."
+}
+function cleanName(v) {
+  const n = v.trim().replace(/\s+/g, " ").slice(0, 40);
+  return n ? n[0].toUpperCase() + n.slice(1) : "";
+}
+async function showWelcome() {
+  const w = $("welcome"), form = $("wl-form"), inp = $("wl-name"), go = $("wl-go"), alt = w.querySelector(".wl-alt");
+  const logo = w.querySelector(".wl-logo"), fresh = logo.cloneNode(true);
+  logo.replaceWith(fresh);  // reinicia a montagem do logo
+  $("wl-t1").textContent = ""; $("wl-t2").textContent = ""; $("wl-t1").classList.remove("wl-hi");
+  form.classList.remove("show"); alt.classList.remove("show");
+  inp.value = userName; go.disabled = !inp.value.trim();
+  w.hidden = false; void w.offsetWidth; w.classList.remove("out");
+  await sleep(motionOff() ? 0 : 1500);
+  await typeText($("wl-t1"), "Bem-vindo à Lia AI.", 42);
+  await typeText($("wl-t2"), "Como devo te chamar?", 36);
+  form.classList.add("show"); alt.classList.add("show"); inp.focus();
+  return new Promise((resolve) => {
+    inp.oninput = () => { go.disabled = !inp.value.trim(); };
+    const finish = async (nome) => {
+      store.set("lia-bemvindo", "1");
+      form.classList.remove("show"); alt.classList.remove("show");
+      if (nome) {
+        await setName(nome);
+        $("wl-t2").textContent = "";
+        $("wl-t1").textContent = `Prazer, ${nome}!`; $("wl-t1").classList.add("wl-hi");
+        await sleep(motionOff() ? 400 : 1200);
+      }
+      w.classList.add("out"); setTimeout(() => { w.hidden = true; }, 650);
+      input.focus(); resolve();
+    };
+    form.onsubmit = (e) => {
+      e.preventDefault();
+      const n = cleanName(inp.value);
+      if (!n) { form.classList.remove("shake"); void form.offsetWidth; form.classList.add("shake"); return; }
+      finish(n);
+    };
+    $("wl-skip").onclick = () => finish(null);
+  });
+}
+$("profname").value = userName;
+$("profname").onchange = () => { const n = cleanName($("profname").value); if (n) setName(n); else $("profname").value = userName; };
+$("welcomeagain").onclick = () => { openSettings(false); showWelcome(); };
+
 // ---------- início: reabre a última conversa (e o contexto dela no modelo)
 (async () => {
   const c = current();
@@ -862,6 +1601,7 @@ setInterval(async () => {
   }
   renderHistory();
   loadInfo();
+  if (!store.get("lia-bemvindo")) showWelcome();
 })();
 </script>
 </body>

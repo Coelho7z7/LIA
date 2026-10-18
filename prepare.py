@@ -20,6 +20,7 @@ from pathlib import Path
 
 import numpy as np
 
+from copia import fixas_das_conversas
 from tokenizer import BPETokenizer
 
 
@@ -56,6 +57,9 @@ def main():
     ap.add_argument("--bpe-dropout", type=float, default=0.0,
                     help="chance de pular cada fusão do BPE no treino (ex.: 0.1); ensina os pedaços raros")
     ap.add_argument("--dropout-frac", type=float, default=0.6, help="fração das conversas de treino com dropout")
+    ap.add_argument("--tokenizer", default=None,
+                    help="usa um tokenizador pronto (tokenizer.json ou checkpoint .pt) em vez de treinar outro: "
+                         "obrigatório para ajustar um modelo que já existe (train.py --init) ou partir de um pré-treino")
     args = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
     out = Path(args.out)
@@ -69,12 +73,20 @@ def main():
         raise SystemExit("Nada para treinar. Rode make_dialogues.py e/ou coloque .txt em data/textos/")
 
     t0 = time.time()
-    corpus = "\n".join(texts + [m["content"] for c in convs for m in c])
-    tok = BPETokenizer()
-    print(f"Treinando tokenizador (vocab={args.vocab})...")
-    tok.train(corpus, args.vocab)
+    if args.tokenizer:
+        if args.tokenizer.endswith(".pt"):
+            import torch
+            tok = BPETokenizer.from_dict(torch.load(args.tokenizer, map_location="cpu", weights_only=False)["tokenizer"])
+        else:
+            tok = BPETokenizer.load(args.tokenizer)
+        print(f"Tokenizador pronto: {args.tokenizer}")
+    else:
+        corpus = "\n".join(texts + [m["content"] for c in convs for m in c])
+        tok = BPETokenizer()
+        print(f"Treinando tokenizador (vocab={args.vocab})...")
+        tok.train(corpus, args.vocab)
+        print(f"  {tok.vocab_size} tokens em {time.time() - t0:.1f}s")
     tok.save(out / "tokenizer.json")
-    print(f"  {tok.vocab_size} tokens em {time.time() - t0:.1f}s")
     meta = {"vocab_size": tok.vocab_size}
 
     if texts:
@@ -111,6 +123,10 @@ def main():
               f"(conversa média {np.mean(lens):.0f} tokens, máx {max(lens)})")
         seen = np.bincount(np.fromfile(out / "sft_train.bin", dtype=np.uint16), minlength=tok.vocab_size)
         print(f"Tokens do vocabulário que nunca aparecem no treino: {(seen == 0).sum()} de {tok.vocab_size}")
+        # vocabulário fixo de cada ferramenta, para a cópia forçada do agente (copia.py)
+        fixas = fixas_das_conversas(convs)
+        (out / "fixas.json").write_text(json.dumps(fixas, ensure_ascii=False, indent=1), encoding="utf-8")
+        print("Vocabulário fixo das ferramentas: " + ", ".join(f"{t} ({len(ws)})" for t, ws in fixas.items()))
 
     (out / "meta.json").write_text(json.dumps(meta, indent=2))
     print(f"Pronto. Tudo em {out}/")

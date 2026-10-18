@@ -19,6 +19,7 @@ from pathlib import Path
 import torch
 
 import tools
+from copia import Copia, carregar_fixas
 from model import GPT, GPTConfig, apply_repetition_penalty, sample_next
 from tokenizer import BPETokenizer
 
@@ -27,7 +28,8 @@ FALLBACK_TEXT = "Hmm, me enrolei aqui. Fala de outro jeito?"
 # Ferramentas cujo resultado é um VALOR que a resposta tem que repetir certinho.
 # Se o modelo errar um dígito, a resposta é trocada por esta frase segura.
 FAITHFUL = {"calcular": "Dá {v}.", "hora": "São {v}.", "data": "Hoje é {v}.", "clima": "Olha só: {v}.",
-            "recordar": "Pelo que você me contou: {v}.", "ver_notas": "Suas últimas notas: {v}."}
+            "recordar": "Pelo que você me contou: {v}.", "ver_notas": "Suas últimas notas: {v}.",
+            "consultar": "Segundo a Wikipédia: {v}"}
 
 
 class Assistant:
@@ -48,6 +50,9 @@ class Assistant:
         t = self.tok
         # Tokens que nunca fazem sentido no meio de uma fala do assistente.
         self.banned_in_text = [t.bos, t.user, t.result, t.call, t.assistant]
+        # Cópia forçada nas chamadas (copia.py): vocabulário fixo gravado ao lado do modelo.
+        self.fixas = carregar_fixas(ckpt_path)
+        self.info["copia"] = self.fixas is not None
         self.reset()
 
     # ------------------------------------------------------------ histórico
@@ -107,12 +112,16 @@ class Assistant:
         if int(logits.argmax()) == tok.call:
             gen = [tok.call]
             logits = self._feed(tok.call)
+            # Palavras do argumento só da conversa (ou do vocabulário fixo da ferramenta).
+            copia = Copia(self.fixas, " ".join(text for _, text, _ in self.turns)) if self.fixas else None
+            raw = b""
             for _ in range(48):  # chamadas são curtas e saem em modo determinístico
                 logits[self.banned_in_text] = float("-inf")
-                t = int(logits.argmax())
-                if t == tok.end:
+                t = copia.escolhe(logits, raw, tok) if copia else int(logits.argmax())
+                if t is None or t == tok.end:
                     break
                 gen.append(t)
+                raw += tok.vocab[t]
                 logits = self._feed(t)
             text = tok.decode(gen[1:]).strip()
             parsed = tools.parse_call(text)
@@ -140,27 +149,42 @@ class Assistant:
             if name in FAITHFUL and res.startswith("ok: ") and "nenhuma nota" not in res:
                 must = (name, res[4:])
 
-        gen = []
-        decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
-        for _ in range(self.max_reply_tokens):
-            logits[self.banned_in_text] = float("-inf")
-            if not gen:
-                logits[tok.end] = float("-inf")  # nada de resposta vazia
-            # Penaliza só o que ela mesma acabou de dizer (evita "ok ok ok ok"),
-            # não o contexto: copiar o resultado da ferramenta é desejado.
-            logits = apply_repetition_penalty(logits, gen[-48:], self.repetition_penalty)
-            t = sample_next(logits, self.temperature, self.top_k, self.top_p)
-            if t == tok.end:
+        # Respostas recentes dela: se sair igualzinha a uma delas, gera de novo (até 2 vezes).
+        # O evento "text" do fim troca o que já apareceu na tela.
+        recentes = {tools.norm(t) for r, t, _ in self.turns[-6:] if r == "assistant"}
+        start, last = len(self.cache_ids), self.cache_ids[-1]  # o prompt; para refazer, o cache volta até aqui
+        proibidas = []  # 1ª palavra das tentativas que repetiram: a próxima começa diferente
+        for tentativa in range(3):
+            gen = []
+            decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+            temperature = self.temperature if not tentativa else max(self.temperature, 0.8) + 0.2 * tentativa
+            for _ in range(self.max_reply_tokens):
+                logits[self.banned_in_text] = float("-inf")
+                if not gen:
+                    logits[tok.end] = float("-inf")  # nada de resposta vazia
+                    logits[proibidas] = float("-inf")
+                # Penaliza só o que ela mesma acabou de dizer (evita "ok ok ok ok"),
+                # não o contexto: copiar o resultado da ferramenta é desejado.
+                logits = apply_repetition_penalty(logits, gen[-48:], self.repetition_penalty)
+                t = sample_next(logits, temperature, self.top_k, self.top_p)
+                if t == tok.end:
+                    break
+                gen.append(t)
+                piece = decoder.decode(tok.vocab[t])
+                if piece and not must and not tentativa:
+                    yield {"type": "token", "text": piece}
+                logits = self._feed(t)
+            tail = decoder.decode(b"", final=True)
+            if tail and not must and not tentativa:
+                yield {"type": "token", "text": tail}
+            text = tok.decode(gen).strip()
+            if must or tools.norm(text) not in recentes or tentativa == 2:
                 break
-            gen.append(t)
-            piece = decoder.decode(tok.vocab[t])
-            if piece and not must:
-                yield {"type": "token", "text": piece}
-            logits = self._feed(t)
-        tail = decoder.decode(b"", final=True)
-        if tail and not must:
-            yield {"type": "token", "text": tail}
-        text = tok.decode(gen).strip()
+            # repetiu: volta o cache para o fim do prompt e sorteia de novo
+            proibidas.append(gen[0])
+            self.cache.pos = start - 1
+            self.cache_ids = self.cache_ids[:start - 1]
+            logits = self._feed(last)
         ids = [tok.assistant] + gen + [tok.end]
         if must:
             name, value = must
@@ -177,6 +201,9 @@ class Assistant:
         """Executa (ou cancela) a chamada pendente e coloca o resultado no histórico."""
         name, arg = self.pending
         self.pending = None
+        if name == "lembrete":  # horário que o modelo perdeu ao copiar ("às 15h", "amanhã") vem da fala
+            fala = next((t for r, t, _ in reversed(self.turns) if r == "user"), "")
+            arg = tools.ancorar_lembrete(arg, fala)
         result = tools.run(name, arg) if approved else "cancelado: você não autorizou"
         ids, _ = self.tok.encode_turn("result", result)
         self.turns.append(("result", result, ids))
