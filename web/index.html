@@ -40,9 +40,9 @@
   .ico { width: 19px; height: 19px; }
 
   /* ---------- histórico (lateral) */
-  #history { width: 268px; flex: none; background: var(--side); border-right: 1px solid var(--line); display: flex;
+  #history { width: 300px; flex: none; background: var(--side); border-right: 1px solid var(--line); display: flex;
              flex-direction: column; transition: margin-left .3s var(--ease); z-index: 7; }
-  body.hist-closed #history { margin-left: -268px; }
+  body.hist-closed #history { margin-left: -300px; }
   .hist-head { display: flex; align-items: center; gap: 8px; padding: 10px 10px 6px 14px; }
   .hist-head b { flex: 1; font-size: 14px; }
   .new-btn { display: flex; align-items: center; gap: 10px; margin: 4px 10px 8px; padding: 9px 12px; border-radius: 10px;
@@ -94,15 +94,15 @@
   main::-webkit-scrollbar, #chatlist::-webkit-scrollbar { width: 8px; }
   main::-webkit-scrollbar-button, #chatlist::-webkit-scrollbar-button { display: none; }
   main::-webkit-scrollbar-thumb, #chatlist::-webkit-scrollbar-thumb { background: var(--line); border-radius: 8px; }
-  #log { max-width: 780px; margin: 0 auto; padding: 24px 16px 12px; display: flex; flex-direction: column; gap: 6px; }
+  .log { max-width: 780px; margin: 0 auto; padding: 24px 16px 12px; display: flex; flex-direction: column; gap: 6px; }
   .row { display: flex; gap: 10px; align-items: flex-end; animation: in-bot .38s var(--ease) both; transform-origin: bottom left; }
   .row.user { justify-content: flex-end; animation-name: in-user; transform-origin: bottom right; }
   .row.bot { align-items: flex-start; }
   .row.bot .time { align-self: flex-end; }
   @keyframes in-bot { from { opacity: 0; transform: translate(-10px, 6px) scale(.97); } }
   @keyframes in-user { from { opacity: 0; transform: translate(10px, 6px) scale(.97); } }
-  #log.restored .row, #log.restored .tk, #log.restored .st path, #log.restored .out { animation: none; }
-  #log.swap { animation: fade .3s var(--ease); }
+  .log.restored .row, .log.restored .tk, .log.restored .st path, .log.restored .out { animation: none; }
+  .log.swap { animation: fade .3s var(--ease); }
   @keyframes fade { from { opacity: 0; } }
   .row.bot .avatar { visibility: hidden; }
   .row.bot.first .avatar { visibility: visible; }
@@ -159,6 +159,17 @@
   .tool .yes:hover { opacity: .88; }
   .tool .no { background: transparent; border: 1px solid var(--line); color: var(--ink); }
   .tool .no:hover { background: var(--chip); }
+  /* conselho na conversa: uma linha que leva à sala */
+  .debate-link { display: inline-flex; align-items: center; gap: 8px; max-width: min(78%, 620px); font-size: 13px;
+                 color: var(--muted); background: none; border: 1px dashed var(--line); border-radius: 12px;
+                 padding: 5px 12px 5px 8px; text-align: left; animation: drop .3s var(--ease) both;
+                 transition: border-color .15s, color .15s; }
+  .debate-link:hover { border-color: var(--ink); color: var(--ink); }
+  .debate-link b { color: var(--ink); font-weight: 600; }
+  .debate-link .faces { display: flex; }
+  .debate-link .faces .ag { width: 20px; height: 20px; font-size: 9.5px; margin-left: -5px; box-shadow: 0 0 0 2px var(--bg); }
+  .debate-link .faces .ag:first-child { margin-left: 0; }
+  .debate-link .go { margin-left: 2px; white-space: nowrap; }
   .spin { width: 13px; height: 13px; border: 2px solid var(--line); border-top-color: var(--ink); border-radius: 50%;
           animation: rot .8s linear infinite; }
   @keyframes rot { to { transform: rotate(360deg); } }
@@ -233,6 +244,159 @@
   #toollist li small { grid-column: 2; color: var(--muted); font-size: 12px; }
   #toollist .tag { color: var(--warn); font-size: 11px; margin-left: 4px; }
 
+  /* ---------- contatos: a Lia, o grupo do conselho e os agentes que você cria */
+  .bl { width: 40px; height: 40px; flex: none; display: block; }
+  .bl svg { width: 100%; height: 100%; display: block; }
+  .bl.lia { border-radius: 11px; background: var(--logo-bg); color: var(--logo-fg); }
+  .bl.lia svg { fill: currentColor; }
+  .bl.you { border-radius: 50%; background: var(--user); color: var(--user-ink); display: grid; place-items: center;
+            font-size: 11px; font-weight: 700; }
+  .avatar.bl { background: none; border-radius: 0; }
+  .avatar.bl.lia { background: var(--logo-bg); border-radius: 7px; }
+  #hlogo.bl.lia { border-radius: 10px; }
+  #contacts { flex: 1; overflow-y: auto; padding: 4px 8px 8px; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+  .contact { display: flex; gap: 11px; align-items: center; width: 100%; border: 0; background: none; text-align: left;
+             padding: 8px 10px; border-radius: 12px; color: var(--ink); animation: rise .35s var(--ease) both;
+             transition: background .15s; }
+  .contact:hover { background: var(--chip); }
+  .contact.on { background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); }
+  .contact .cc { flex: 1; min-width: 0; }
+  .contact .top { display: flex; gap: 6px; align-items: baseline; }
+  .contact .top b { flex: 1; min-width: 0; font-size: 14.5px; font-weight: 600; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .contact .top time { font-size: 11.5px; color: var(--muted); flex: none; }
+  .contact .pv { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); }
+  .contact .pv span { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .contact.unread .top b { font-weight: 700; }
+  .contact.unread .pv::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #3b82f6; flex: none; }
+  .contact.typing .pv span { font-style: italic; }
+  .side-sep { margin: 12px 10px 4px; font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+  .add-agent { display: flex; align-items: center; gap: 11px; width: 100%; padding: 8px 10px; border: 1px dashed var(--line);
+               border-radius: 12px; background: none; color: var(--muted); font-size: 14px; margin-top: 4px;
+               transition: border-color .15s, color .15s; }
+  .add-agent:hover { border-color: var(--ink); color: var(--ink); }
+  .add-agent span { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--chip); }
+  .add-agent svg { width: 18px; height: 18px; }
+  .side-foot { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-top: 1px solid var(--line); }
+  .side-foot button { display: flex; align-items: center; gap: 10px; border: 0; background: none; color: var(--ink);
+                      padding: 6px 8px; border-radius: 9px; font-size: 14px; flex: 1; }
+  .side-foot button:hover { background: var(--chip); }
+  .side-foot svg { width: 18px; height: 18px; }
+
+  /* conversa vazia de um agente */
+  .ag-empty { text-align: center; margin: 6vh auto 0; max-width: 460px; color: var(--muted); }
+  .ag-empty .bl { width: 72px; height: 72px; margin: 0 auto 14px; animation: pop .6s var(--spring) both; }
+  .ag-empty h2 { color: var(--ink); font-size: 24px; margin: 0 0 4px; }
+  .ag-empty p { margin: 0 0 14px; }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+  .tag2 { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; background: var(--chip);
+          color: var(--ink); font-size: 12.5px; }
+  .tag2 svg { width: 14px; height: 14px; }
+  .routine-msg .msg { border-left: 3px solid var(--warn); }
+
+  /* ---------- grupo do conselho (no centro, como um chat em grupo) */
+  #c-log { max-width: 780px; margin: 0 auto; padding: 20px 16px 8px; display: flex; flex-direction: column; gap: 10px; }
+  #c-log[hidden], #c-typing[hidden], .log[hidden] { display: none; }
+  .c-empty { color: var(--muted); font-size: 14px; text-align: center; padding: 8vh 18px; }
+  .c-empty .bl { width: 72px; height: 72px; margin: 0 auto 14px; }
+  .c-empty h2 { color: var(--ink); font-size: 24px; margin: 0 0 4px; }
+  .round-head { display: flex; gap: 8px; align-items: center; margin-top: 10px; color: var(--muted); font-size: 12px; }
+  .round-head::before, .round-head::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+  .round-head:first-child { margin-top: 0; }
+  .round { display: flex; flex-direction: column; gap: 10px; }
+  .round.flash .cm.you .ct { animation: flash 1.2s var(--ease); }
+  @keyframes flash { 30% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 45%, transparent); } }
+  .cm { display: flex; gap: 9px; align-items: flex-start; animation: in-bot .35s var(--ease) both; }
+  .cm .bl { width: 32px; height: 32px; }
+  .cm .cb { min-width: 0; flex: 1; }
+  .cm .ch { display: flex; gap: 6px; align-items: baseline; font-size: 12.5px; }
+  .cm .ch b { font-weight: 650; }
+  .cm .ch time, .cm .ch small { color: var(--muted); font-size: 11px; }
+  .cm .ct { display: inline-block; margin-top: 2px; padding: 8px 12px; border-radius: 4px 16px 16px 16px; background: var(--panel);
+            border: 1px solid var(--line); font-size: 14px; white-space: pre-wrap; word-wrap: break-word; max-width: min(100%, 620px); }
+  .cm.you .ct { background: var(--user); color: var(--user-ink); border-color: transparent; }
+  .cm.priv .ct { background: transparent; border-style: dashed; color: var(--muted); font-size: 12.5px;
+                 font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
+  .cm .cq { margin-top: 3px; padding: 2px 8px; border-left: 3px solid var(--line); color: var(--muted); font-size: 12px;
+            overflow: hidden; white-space: nowrap; text-overflow: ellipsis; cursor: pointer; max-width: 620px; }
+  .cm .cq:hover { color: var(--ink); }
+  .cm .cr { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  .cm .cr:empty { display: none; }
+  .rx { display: inline-flex; align-items: center; gap: 3px; padding: 0 7px; border-radius: 999px; border: 1px solid var(--line);
+        background: var(--panel); font-size: 12px; line-height: 20px; animation: pop .35s var(--spring) both; }
+  .rx i { font-style: normal; color: var(--muted); font-size: 11px; }
+  .cm.hl .ct { animation: flash 1.2s var(--ease); }
+  #c-typing { max-width: 780px; margin: 0 auto; min-height: 34px; padding: 4px 16px 10px; display: flex; align-items: center;
+              gap: 8px; color: var(--muted); font-size: 12.5px; }
+  #c-typing .bl { width: 22px; height: 22px; }
+  #c-typing .dots i { width: 5px; height: 5px; }
+  .wt { margin-left: 8px; color: var(--muted); font-size: 12.5px; }
+
+  /* ---------- detalhes do contato (à direita) */
+  #details { width: 330px; flex: none; background: var(--panel); border-left: 1px solid var(--line); display: flex;
+             flex-direction: column; transition: margin-right .3s var(--ease); z-index: 7; min-height: 0; }
+  body.details-closed #details { margin-right: -330px; }
+  #details .d-head { display: flex; justify-content: flex-end; gap: 4px; padding: 8px 8px 0; }
+  #d-body { flex: 1; overflow-y: auto; padding: 4px 20px 20px; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+  .d-id { text-align: center; padding: 6px 0 16px; border-bottom: 1px solid var(--line); }
+  .d-id .bl { width: 84px; height: 84px; margin: 0 auto 10px; }
+  .d-id h3 { margin: 0; font-size: 19px; }
+  .d-id p { margin: 4px 0 0; color: var(--muted); font-size: 13.5px; }
+  #d-body h4 { margin: 18px 0 8px; font-size: 12px; font-weight: 600; color: var(--muted); }
+  .d-row { display: flex; gap: 10px; align-items: flex-start; padding: 7px 0; font-size: 14px; }
+  .d-row > svg, .d-row > .bl { width: 18px; height: 18px; flex: none; margin-top: 2px; color: var(--ok); }
+  .d-row.off > svg { color: var(--muted); }
+  .d-row .bl { width: 22px !important; height: 22px !important; margin-top: 0 !important; }
+  .d-row div { flex: 1; min-width: 0; }
+  .d-row small { display: block; color: var(--muted); font-size: 12.5px; }
+  .d-row .mini { border: 1px solid var(--line); background: none; border-radius: 8px; padding: 2px 9px; font-size: 12px; color: var(--ink); }
+  .d-row .mini:hover { background: var(--chip); }
+  .d-actions { display: flex; gap: 8px; margin-top: 18px; }
+  .d-actions .btn { flex: 1; }
+  .stat { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat div { background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; }
+  .stat b { display: block; font-size: 18px; }
+  .stat small { color: var(--muted); font-size: 12px; }
+  #d-body #chatlist { padding: 0; margin: 0 -8px; }
+  #details > #chatlist { display: none; }
+
+  /* ---------- editor de agente */
+  .modal form.box.ed { display: block; width: min(560px, 100%); max-width: none; margin: 0; max-height: calc(100vh - 32px);
+                       overflow-y: auto; padding: 20px 20px 16px; border-radius: 16px; gap: 0; }
+  .modal form.box.ed:focus-within { border-color: var(--line); }
+  .ed label.f { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 0; }
+  .ed input[type=text], .ed input[type=time], .ed textarea, .ed select {
+    width: 100%; margin-top: 4px; font: inherit; color: var(--ink); background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 10px; padding: 8px 10px; outline: 0; }
+  .ed input:focus, .ed textarea:focus, .ed select:focus { border-color: color-mix(in srgb, var(--ink) 45%, var(--line)); }
+  .ed textarea { resize: vertical; }
+  .ed h4 { margin: 18px 0 6px; font-size: 12px; color: var(--muted); font-weight: 600; }
+  .ed-top { display: flex; gap: 14px; align-items: center; }
+  .ed-top .bl { width: 64px; height: 64px; }
+  .ed-top > div { flex: 1; }
+  .cores { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .cores button { width: 30px; height: 30px; padding: 0; border: 2px solid transparent; border-radius: 50%; background: none; }
+  .cores button.on { border-color: var(--ink); }
+  .cores .bl { width: 100%; height: 100%; }
+  .toolgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 10px; }
+  .toolgrid label { display: flex; align-items: center; gap: 8px; font-size: 13.5px; padding: 3px 0; cursor: pointer; }
+  .toolgrid svg { width: 15px; height: 15px; color: var(--muted); flex: none; }
+  .rot { border: 1px solid var(--line); border-radius: 12px; padding: 4px 12px 12px; margin-bottom: 8px; background: var(--panel-2); }
+  .rot .rl { display: grid; grid-template-columns: 1fr 110px 130px auto; gap: 8px; align-items: end; }
+  .rot .rl label.f { margin-top: 8px; }
+  .rot .x { border: 0; background: none; color: var(--muted); padding: 8px 4px; }
+  .rot .x:hover { color: var(--err); }
+  .rot .x svg { width: 16px; height: 16px; }
+  .rot small { color: var(--muted); font-size: 12px; }
+  .erro { color: var(--err); font-size: 13.5px; min-height: 1em; margin: 12px 0 0; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .btn.primary:hover { opacity: .9; background: var(--accent); }
+  @media (max-width: 1180px) {
+    #details { position: fixed; top: 0; bottom: 0; right: 0; box-shadow: var(--shadow); width: min(340px, 100vw); }
+    body:not(.details-open) #details { margin-right: -350px; }
+    body.details-closed #details { margin-right: -350px; }
+  }
+  @media (max-width: 560px) { .rot .rl { grid-template-columns: 1fr 1fr; } }
+
   /* aviso de lembrete */
   #toast { position: fixed; left: 50%; top: 14px; transform: translate(-50%, -200%); background: var(--panel); color: var(--ink);
            border: 1px solid var(--line); border-left: 4px solid var(--warn); border-radius: 0 12px 12px 0; box-shadow: var(--shadow);
@@ -273,7 +437,7 @@
 
   @media (max-width: 900px) {
     #history { position: fixed; top: 0; bottom: 0; left: 0; box-shadow: var(--shadow); }
-    body:not(.hist-open) #history { margin-left: -268px; }
+    body:not(.hist-open) #history { margin-left: -300px; }
     body.hist-open #history { margin-left: 0; }
   }
   @media (max-width: 560px) {
@@ -285,13 +449,14 @@
 </style>
 </head>
 <body>
-<aside id="history" aria-label="Conversas">
-  <div class="hist-head"><b>Conversas</b>
+<aside id="history" aria-label="Contatos">
+  <div class="hist-head"><b>Lia e agentes</b>
     <button class="icon-btn" id="histclose" title="Fechar painel (Ctrl+B)" aria-label="Fechar painel"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 4v16M15 10l-2 2 2 2"/></svg></button>
   </div>
-  <button class="new-btn" id="newchat2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Nova conversa</button>
-  <div id="chatlist"></div>
-  <div class="hist-foot">Salvas só neste computador.</div>
+  <div id="contacts"></div>
+  <div class="side-foot">
+    <button id="gear2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 4.3c.4-1.8 2.9-1.8 3.4 0a1.7 1.7 0 0 0 2.6 1.1c1.5-.9 3.3.8 2.4 2.4a1.7 1.7 0 0 0 1 2.5c1.8.4 1.8 2.9 0 3.4a1.7 1.7 0 0 0-1 2.6c.9 1.5-.9 3.3-2.4 2.4a1.7 1.7 0 0 0-2.6 1c-.4 1.8-2.9 1.8-3.4 0a1.7 1.7 0 0 0-2.6-1c-1.5.9-3.3-.9-2.4-2.4a1.7 1.7 0 0 0-1-2.6c-1.8-.4-1.8-2.9 0-3.4a1.7 1.7 0 0 0 1-2.5c-.9-1.6.9-3.3 2.4-2.4a1.7 1.7 0 0 0 2.6-1.1z"/><circle cx="12" cy="12" r="3"/></svg>Configurações</button>
+  </div>
 </aside>
 
 <div class="app">
@@ -299,10 +464,13 @@
   <button class="icon-btn" id="histbtn" title="Conversas (Ctrl+B)" aria-label="Mostrar conversas">
     <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 4v16"/></svg>
   </button>
-  <div class="avatar" id="hlogo"><svg viewBox="0 0 64 64" aria-hidden="true"><rect x="18" y="14" width="10" height="36"/><rect x="18" y="40" width="28" height="10"/><rect x="36" y="24" width="10" height="10"/></svg></div>
-  <div class="title"><b>Lia</b><small><span id="status">conectando...</span></small></div>
+  <div class="avatar bl lia" id="hlogo"><svg viewBox="0 0 64 64" aria-hidden="true"><rect x="18" y="14" width="10" height="36"/><rect x="18" y="40" width="28" height="10"/><rect x="36" y="24" width="10" height="10"/></svg></div>
+  <div class="title"><b id="hname">Lia</b><small><span id="status">conectando...</span></small></div>
   <button class="icon-btn" id="newchat" title="Nova conversa (Ctrl+Shift+O)" aria-label="Nova conversa">
     <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+  </button>
+  <button class="icon-btn" id="infobtn" title="Detalhes" aria-label="Detalhes do contato">
+    <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M15 4v16"/></svg>
   </button>
   <button class="icon-btn" id="gear" title="Configurações" aria-label="Configurações">
     <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 4.3c.4-1.8 2.9-1.8 3.4 0a1.7 1.7 0 0 0 2.6 1.1c1.5-.9 3.3.8 2.4 2.4a1.7 1.7 0 0 0 1 2.5c1.8.4 1.8 2.9 0 3.4a1.7 1.7 0 0 0-1 2.6c.9 1.5-.9 3.3-2.4 2.4a1.7 1.7 0 0 0-2.6 1c-.4 1.8-2.9 1.8-3.4 0a1.7 1.7 0 0 0-2.6-1c-1.5.9-3.3-.9-2.4-2.4a1.7 1.7 0 0 0-1-2.6c-1.8-.4-1.8-2.9 0-3.4a1.7 1.7 0 0 0 1-2.5c-.9-1.6.9-3.3 2.4-2.4a1.7 1.7 0 0 0 2.6-1.1z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -310,7 +478,9 @@
 </header>
 
 <main id="scroller">
-  <div id="log"></div>
+  <div id="log" class="log"></div>
+  <div id="c-log" hidden></div>
+  <div id="c-typing" aria-live="polite" hidden></div>
 </main>
 
 <footer>
@@ -324,6 +494,12 @@
 </footer>
 </div>
 
+<aside id="details" aria-label="Detalhes">
+  <div class="d-head"><button class="icon-btn" id="d-close" title="Fechar" aria-label="Fechar detalhes"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+  <div id="d-body"></div>
+  <div id="chatlist"></div>
+</aside>
+
 <div id="shade"></div>
 <aside id="settings" aria-label="Configurações">
   <div class="head"><h3>Configurações</h3>
@@ -331,6 +507,7 @@
   </div>
   <h4>Comportamento</h4>
   <label><span>Executar sem perguntar<small>abre apps e sites direto, sem confirmação</small></span><input type="checkbox" class="switch" id="auto"></label>
+  <label><span>Conselho<small>várias versões dela debatem antes de responder: demora um pouco mais e erra menos</small></span><input type="checkbox" class="switch" id="conselho"></label>
   <div style="padding:8px 0">
     <div style="display:flex;justify-content:space-between"><span>Criatividade</span><small id="tempval" style="color:var(--muted)"></small></div>
     <input type="range" id="temp" min="0" max="1.2" step="0.1">
@@ -348,6 +525,24 @@
   <h4>O que eu sei fazer</h4>
   <ul id="toollist"></ul>
 </aside>
+
+<div class="modal" id="editor" hidden>
+  <form class="box ed" id="edform" role="dialog" aria-modal="true" aria-labelledby="edtitle" novalidate>
+    <h3 id="edtitle">Novo agente</h3>
+    <div class="ed-top"><span class="bl" id="edavatar"></span>
+      <div><label class="f">Nome<input type="text" id="ednome" maxlength="40" placeholder="ex.: Música" autocomplete="off"></label>
+        <div class="cores" id="edcores" aria-label="Cor"></div></div>
+    </div>
+    <label class="f">Função<textarea id="edfuncao" rows="2" maxlength="300" placeholder="ex.: cuida da música e do volume do PC"></textarea></label>
+    <h4>Ferramentas que só ele usa</h4>
+    <div class="toolgrid" id="edtools"></div>
+    <h4>Rotinas</h4>
+    <div id="edrotinas"></div>
+    <button type="button" class="btn" id="edaddrot">+ Rotina</button>
+    <p class="erro" id="ederro" role="alert"></p>
+    <div class="mbtns"><button type="button" class="btn" id="edcancel">Cancelar</button><button type="submit" class="btn primary" id="edsave">Salvar</button></div>
+  </form>
+</div>
 
 <div id="toast" role="status"></div>
 <div id="snack" role="status"><span id="snacktext"></span><button id="snackbtn">Desfazer</button></div>
@@ -386,6 +581,9 @@ const ICONS = {
   check: '<path d="m5 12 5 5 9-10"/>',
   x: '<path d="M6 6l12 12M18 6 6 18"/>',
   trash: '<path d="M4 7h16M10 11v6M14 11v6M5 7l1 13h12l1-13M9 7V4h6v3"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  pause: '<circle cx="12" cy="12" r="9"/><path d="M10 9v6M14 9v6"/>',
+  people: '<circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0M16 5a3 3 0 0 1 0 6M18 14a6 6 0 0 1 3 6"/>',
 };
 const ICON = (n) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n] || ICONS.gear}</svg>`;
 const LABELS = {
@@ -401,7 +599,8 @@ const SUGGESTIONS = [
   ["cloud", "como tá o tempo em Recife?"], ["play", "toca lofi no youtube"], ["smile", "me conta uma piada"],
 ];
 const $ = (id) => document.getElementById(id);
-const log = $("log"), input = $("input"), sendBtn = $("send");
+let log = $("log");  // a conversa aberta (a da Lia ou a de um agente)
+const input = $("input"), sendBtn = $("send");
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
   set(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } },
@@ -444,7 +643,7 @@ function row(role) {
   $("empty")?.remove(); log.classList.remove("restored");
   const r = document.createElement("div");
   r.className = "row " + role + (lastRole !== role ? " first" : "");
-  if (role === "bot") r.innerHTML = `<div class="avatar sm">${GLYPH}</div>`;
+  if (role === "bot") r.appendChild(avatar(contato, "avatar sm"));
   log.appendChild(r); lastRole = role;
   return r;
 }
@@ -540,9 +739,498 @@ function setResult(card, text) {
   scroll(); save();
 }
 
+// ---------- avatares: bolinhas com olhos (como contatos de um app de mensagens)
+const HUES = [262, 205, 145, 350, 28, 320, 188, 45];
+const FORMAS = {
+  circulo: ['<circle cx="20" cy="20" r="17"/>', 19],
+  gota: ['<path d="M20 3c7 9 15 15 15 23a15 15 0 0 1-30 0c0-8 8-14 15-23z"/>', 25],
+  nuvem: ['<path d="M11 33a8 8 0 0 1-1.5-15.9A10.5 10.5 0 0 1 30 14.5 9.3 9.3 0 0 1 29 33z"/>', 23],
+  triangulo: ['<path d="M20 4c1.6 0 2.8.9 3.8 2.6l12.4 22.6c1.9 3.5-.2 6.8-4.1 6.8H7.9c-3.9 0-6-3.3-4.1-6.8L16.2 6.6C17.2 4.9 18.4 4 20 4z"/>', 25],
+  quadrado: ['<rect x="3" y="3" width="34" height="34" rx="12"/>', 19],
+};
+const FORMA_DA_COR = ["circulo", "gota", "nuvem", "quadrado", "triangulo", "gota", "circulo", "nuvem"];
+function blobSVG(h, forma) {
+  const [shape, y] = FORMAS[forma];
+  return `<svg viewBox="0 0 40 40" aria-hidden="true"><g fill="hsl(${h} 72% 60%)">${shape}</g>` +
+         `<g fill="#fff"><ellipse cx="15.5" cy="${y}" rx="2.6" ry="3.8"/><ellipse cx="24.5" cy="${y}" rx="2.6" ry="3.8"/></g></svg>`;
+}
+// os papéis do conselho (bastidores): não são contatos, só aparecem no grupo
+const PAPEIS = {
+  Direta: { h: 205, forma: "circulo", papel: "Vai no caminho mais provável do modelo.", faz: "pensando" },
+  Exploradora: { h: 145, forma: "gota", papel: "Sorteia outra versão no mesmo caminho.", faz: "sorteando" },
+  "Cética": { h: 350, forma: "triangulo", papel: "Defende o caminho contrário: e se for só papo?", faz: "duvidando" },
+  Copista: { h: 28, forma: "nuvem", papel: "Testa cada trecho do seu pedido como argumento.", faz: "copiando" },
+  Revisora: { h: 262, forma: "quadrado", papel: "Confere cada proposta contra as regras dos dados de treino.", faz: "conferindo" },
+};
+let agentesLista = [];
+const agente = (id) => agentesLista.find((a) => a.id === id);
+const agentePorNome = (nome) => agentesLista.find((a) => a.nome === nome);
+function nomeDe(id) { return id === "lia" ? NAME : id === "conselho" ? "Conselho" : agente(id)?.nome || "?"; }
+// avatar de um contato (id) ou de quem fala no grupo (nome)
+function avatar(quem, cls = "") {
+  const el = document.createElement("span");
+  el.className = "bl " + cls;
+  const a = agente(quem) || agentePorNome(quem), p = PAPEIS[quem];
+  if (quem === "lia" || quem === NAME) { el.classList.add("lia"); el.innerHTML = GLYPH; }
+  else if (quem === "conselho") {
+    el.innerHTML = `<svg viewBox="0 0 40 40" aria-hidden="true"><g transform="translate(-2 6) scale(.62)">${blobSVG(205, "circulo").replace(/^<svg[^>]*>|<\/svg>$/g, "")}</g>` +
+                   `<g transform="translate(15 1) scale(.62)">${blobSVG(350, "triangulo").replace(/^<svg[^>]*>|<\/svg>$/g, "")}</g>` +
+                   `<g transform="translate(9 15) scale(.62)">${blobSVG(28, "nuvem").replace(/^<svg[^>]*>|<\/svg>$/g, "")}</g></svg>`;
+  }
+  else if (a) el.innerHTML = blobSVG(HUES[a.cor % HUES.length], FORMA_DA_COR[a.cor % FORMA_DA_COR.length]);
+  else if (p) el.innerHTML = blobSVG(p.h, p.forma);
+  else { el.classList.add("you"); el.textContent = "Vc"; }
+  return el;
+}
+
+// ---------- contatos: Lia (faz tudo), Conselho (o grupo do debate) e os agentes que você cria
+let contato = "lia", statusLia = "conectando...";
+const logs = { lia: $("log") }, naoLidos = new Set(), carregados = new Set();
+const AG_KEY = (id) => "lia-ag-" + id;
+function lerAgente(id) { try { return JSON.parse(store.get(AG_KEY(id)) || "null"); } catch (e) { return null; } }
+function gravarAgente(id, patch) { store.set(AG_KEY(id), JSON.stringify({ ...(lerAgente(id) || {}), ...patch })); }
+function logDe(id) {
+  if (!logs[id]) {
+    const d = document.createElement("div"); d.className = "log"; d.hidden = true; d.dataset.c = id;
+    $("scroller").insertBefore(d, clog);
+    logs[id] = d;
+    const salvo = lerAgente(id);
+    if (salvo?.html) { d.innerHTML = salvo.html; d.classList.add("restored"); }
+  }
+  return logs[id];
+}
+function ultimoPapel(el) {
+  const last = [...el.children].filter((x) => x.classList.contains("row")).pop()?.classList;
+  return last?.contains("user") ? "user" : last ? "bot" : null;
+}
+function previa(id) {
+  if (id === "conselho") {
+    const m = [...clog.querySelectorAll(".cm:not(.priv)")].pop();
+    return m ? { t: m.dataset.de + ": " + m.querySelector(".ct").textContent, h: m.querySelector("time")?.textContent }
+             : { t: "os bastidores de cada resposta" };
+  }
+  const el = logDe(id), rows = [...el.querySelectorAll(".row:not(.thinking)")], r = rows.pop();
+  if (!r) return { t: id === "lia" ? "faz tudo, com todas as ferramentas" : agente(id)?.funcao || "sem mensagens ainda" };
+  const txt = r.querySelector(".msg")?.textContent || r.querySelector(".tool")?.innerText.replace(/\s+/g, " ") ||
+              r.querySelector(".debate-link")?.textContent || "";
+  return { t: (r.classList.contains("user") ? "Você: " : "") + txt, h: [...el.querySelectorAll(".time")].pop()?.textContent };
+}
+function renderContatos() {
+  const box = $("contacts"); box.innerHTML = "";
+  const item = (id) => {
+    const b = document.createElement("button");
+    b.className = "contact" + (id === contato ? " on" : "") + (naoLidos.has(id) ? " unread" : "") + (busy && id === streamDe ? " typing" : "");
+    b.dataset.c = id; b.title = nomeDe(id);
+    const pv = busy && id === streamDe ? { t: "digitando…" } : previa(id);
+    b.appendChild(avatar(id));
+    const cc = document.createElement("span"); cc.className = "cc";
+    cc.innerHTML = '<span class="top"><b></b><time></time></span><span class="pv"><span></span></span>';
+    cc.querySelector("b").textContent = nomeDe(id); cc.querySelector("time").textContent = pv.h || "";
+    cc.querySelector(".pv span").textContent = pv.t;
+    b.appendChild(cc);
+    b.onclick = () => abrirContato(id);
+    box.appendChild(b);
+  };
+  item("lia"); item("conselho");
+  const sep = document.createElement("div"); sep.className = "side-sep"; sep.textContent = "Seus agentes"; box.appendChild(sep);
+  agentesLista.forEach((a) => item(a.id));
+  const add = document.createElement("button"); add.className = "add-agent";
+  add.innerHTML = `<span>${ICON("plus")}</span>Novo agente`; add.onclick = () => abrirEditor(null);
+  box.appendChild(add);
+}
+function vazioAgente(id) {
+  const a = agente(id), el = logDe(id);
+  el.innerHTML = "";
+  const e = document.createElement("div"); e.className = "ag-empty";
+  e.appendChild(avatar(id));
+  e.insertAdjacentHTML("beforeend", "<h2></h2><p></p><div class=\"tags\"></div>");
+  e.querySelector("h2").textContent = a.nome;
+  e.querySelector("p").textContent = (a.funcao || "Sem função escrita.") + " Pedidos fora disso ele passa para quem cuida.";
+  for (const f of a.ferramentas) {
+    const [icon, label] = LABELS[f] || ["gear", f];
+    const t = document.createElement("span"); t.className = "tag2"; t.innerHTML = ICON(icon);
+    t.append(label); e.querySelector(".tags").appendChild(t);
+  }
+  el.appendChild(e);
+}
+async function abrirContato(id) {
+  if (busy && id !== contato) return snack("Espera terminar a resposta para trocar de conversa.", null);
+  if (id !== "lia" && id !== "conselho" && !agente(id)) id = "lia";
+  contato = id; naoLidos.delete(id); store.set("lia-contato", id);
+  for (const [k, el] of Object.entries(logs)) el.hidden = k !== id;
+  clog.hidden = $("c-typing").hidden = id !== "conselho";
+  if (id !== "conselho") {
+    log = logDe(id); log.hidden = false; lastRole = ultimoPapel(log);
+    if (id !== "lia" && !log.querySelector(".row")) vazioAgente(id);
+  }
+  // cabeçalho, caixa de texto e detalhes
+  const h = $("hlogo"); h.replaceWith(avatar(id, "avatar"));
+  const nh = document.querySelector(".app header .bl"); nh.id = "hlogo";
+  $("hname").textContent = nomeDe(id);
+  $("status").textContent = id === "lia" ? statusLia : id === "conselho" ? "o grupo onde os papéis debatem cada resposta" : agente(id).funcao || "agente";
+  $("newchat").hidden = id !== "lia";
+  input.disabled = id === "conselho";
+  input.placeholder = id === "conselho" ? "O grupo é para acompanhar o debate: fale com a Lia ou com um agente" : `Mensagem para ${nomeDe(id)}...`;
+  document.querySelector("footer .hint").hidden = id === "conselho";
+  renderDetalhes(); renderContatos(); closeHistoryIfOverlay();
+  requestAnimationFrame(() => scroll());
+  // o servidor guarda a conversa de cada agente; na primeira vez nesta página, manda o histórico salvo
+  if (id !== "lia" && id !== "conselho" && !carregados.has(id)) {
+    carregados.add(id);
+    try { await api("/api/load", { agente: id, turns: lerAgente(id)?.turns || [] }); } catch (e) {}
+  }
+  if (id !== "conselho") input.focus();
+}
+
+// ---------- detalhes do contato (à direita)
+function detalhesAberto() { return narrow1180() ? document.body.classList.contains("details-open") : !document.body.classList.contains("details-closed"); }
+function abrirDetalhes(open) {
+  if (narrow1180()) document.body.classList.toggle("details-open", open);
+  else { document.body.classList.toggle("details-closed", !open); store.set("lia-detalhes", open ? "1" : "0"); }
+}
+const narrow1180 = () => matchMedia("(max-width: 1180px)").matches;
+function dRow(icon, title, sub, extra) {
+  const r = document.createElement("div"); r.className = "d-row";
+  if (typeof icon === "string") r.innerHTML = ICON(icon); else r.appendChild(icon);
+  const d = document.createElement("div"); d.textContent = title;
+  if (sub) { const s = document.createElement("small"); s.textContent = sub; d.appendChild(s); }
+  r.appendChild(d);
+  if (extra) r.appendChild(extra);
+  return r;
+}
+const quandoTxt = (iso) => {
+  if (!iso) return "sem próxima execução";
+  const d = new Date(iso), hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  const dias = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - hoje) / 864e5);
+  const hh = d.toTimeString().slice(0, 5);
+  return "próxima: " + (dias <= 0 ? "hoje" : dias === 1 ? "amanhã" : d.toLocaleDateString("pt-BR", { weekday: "long" })) + " às " + hh;
+};
+function rodadasDe(nome) {
+  let falou = 0, venceu = 0;
+  clog.querySelectorAll(".round").forEach((r) => {
+    if (r.dataset.chat === nome) falou++;
+    if (r.dataset.vencedor === nome) venceu++;
+  });
+  return { falou, venceu };
+}
+function renderDetalhes() {
+  $("details").appendChild($("chatlist"));  // a lista de conversas sai antes de limpar (fica escondida)
+  const box = $("d-body"); box.innerHTML = "";
+  const id = contato, a = agente(id);
+  const top = document.createElement("div"); top.className = "d-id";
+  top.appendChild(avatar(id));
+  top.insertAdjacentHTML("beforeend", "<h3></h3><p></p>");
+  top.querySelector("h3").textContent = nomeDe(id);
+  top.querySelector("p").textContent = id === "lia" ? "Faz tudo: usa todas as ferramentas e é para quem os agentes passam o que não é deles."
+    : id === "conselho" ? "Antes de cada resposta, cinco papéis debatem aqui e a Lia decide. Subiu o acerto de argumento de 90% para 94%."
+    : a.funcao || "Sem função escrita.";
+  box.appendChild(top);
+  const h4 = (t) => { const h = document.createElement("h4"); h.textContent = t; box.appendChild(h); };
+  if (id === "lia") {
+    const nova = document.createElement("div"); nova.className = "d-actions";
+    nova.innerHTML = '<button class="btn" id="newchat2">Nova conversa</button>';
+    nova.querySelector("button").onclick = newChat;
+    box.appendChild(nova);
+    h4("Conversas");
+    box.appendChild($("chatlist"));
+  } else if (id === "conselho") {
+    h4("Quem debate");
+    for (const [nome, p] of Object.entries(PAPEIS)) box.appendChild(dRow(avatar(nome), nome, p.papel));
+    box.appendChild(dRow(avatar("lia"), "Lia", "Junta tudo e decide."));
+    h4("Rodadas");
+    const st = document.createElement("div"); st.className = "stat";
+    const rs = clog.querySelectorAll(".round").length, trocou = clog.querySelectorAll('.round[data-trocou="1"]').length;
+    st.innerHTML = `<div><b>${rs}</b><small>rodadas guardadas</small></div><div><b>${trocou}</b><small>em que a Direta perdeu</small></div>`;
+    box.appendChild(st);
+  } else {
+    h4("Ferramentas");
+    for (const f of a.ferramentas) { const [icon, label] = LABELS[f] || ["gear", f]; const r = dRow(icon, label); r.querySelector("svg").style.color = "var(--muted)"; box.appendChild(r); }
+    h4("Rotinas");
+    if (!a.rotinas.length) box.appendChild(dRow("clock", "Nenhuma rotina", "Crie uma em Editar: ela roda sozinha no horário."));
+    for (const r of a.rotinas) {
+      const run = document.createElement("button"); run.className = "mini"; run.textContent = "rodar agora";
+      run.onclick = () => rodarRotina(a.id, r.id);
+      const row = dRow(r.ativa ? "clock" : "pause", r.nome, `${r.dias} às ${r.hora} · ${r.ativa ? quandoTxt(r.proxima) : "pausada"}\n${r.passos.join(" · ")}`, run);
+      row.classList.toggle("off", !r.ativa);
+      box.appendChild(row);
+    }
+    h4("No conselho");
+    const st = document.createElement("div"); st.className = "stat";
+    const { falou } = rodadasDe(a.nome);
+    st.innerHTML = `<div><b>${falou}</b><small>rodadas no chat dele</small></div><div><b>${a.ferramentas.length}</b><small>ferramentas</small></div>`;
+    box.appendChild(st);
+    const act = document.createElement("div"); act.className = "d-actions";
+    act.innerHTML = '<button class="btn">Editar</button><button class="btn danger">Apagar</button>';
+    act.children[0].onclick = () => abrirEditor(a);
+    act.children[1].onclick = () => apagarAgente(a);
+    box.appendChild(act);
+  }
+}
+async function carregarAgentes() {
+  try { agentesLista = await (await api("/api/agentes")).json(); } catch (e) {}
+  renderContatos();
+  if (contato !== "lia" && contato !== "conselho") {
+    if (!agente(contato)) return abrirContato("lia");  // o agente aberto foi apagado
+    renderDetalhes();
+  }
+}
+
+// ---------- rotinas: chegam pelo /api/events (ou pelo "rodar agora") e viram mensagem no chat do agente
+function addRotina(id, nome, texto) {
+  if (!agente(id)) return;
+  const el = logDe(id);
+  el.querySelector(".ag-empty")?.remove();
+  const r = document.createElement("div"); r.className = "row bot first routine-msg";
+  r.appendChild(avatar(id, "avatar sm"));
+  const m = document.createElement("div"); m.className = "msg"; m.textContent = `🔁 ${nome}\n${texto}`;
+  const t = document.createElement("span"); t.className = "time"; t.textContent = now();
+  r.append(m, t); el.appendChild(r);
+  gravarAgente(id, { html: snapshot(el) });
+  if (id !== contato) naoLidos.add(id); else scroll();
+  renderContatos();
+}
+async function rodarRotina(id, rid) {
+  try {
+    const res = await (await api("/api/rotina", { agente: id, rotina: rid })).json();
+    if (res.erro) return snack(res.erro, null);
+    addRotina(id, res.nome, res.texto);
+    if (id !== contato) abrirContato(id);
+  } catch (e) { snack("Não consegui rodar a rotina agora.", null); }
+}
+
+// ---------- editor de agente
+let edCor = 0, edAgente = null;
+function rotinaHTML(r = {}) {
+  const box = document.createElement("div"); box.className = "rot";
+  box.dataset.id = r.id || "";
+  box.innerHTML = `<div class="rl"><label class="f">Nome<input type="text" class="rn" maxlength="40" placeholder="ex.: Bom dia"></label>
+    <label class="f">Horário<input type="time" class="rh"></label>
+    <label class="f">Dias<select class="rd"><option>todo dia</option><option>dias úteis</option><option>fim de semana</option></select></label>
+    <button type="button" class="x" title="Tirar rotina" aria-label="Tirar rotina">${ICON("trash")}</button></div>
+    <label class="f">Passos (um por linha: ferramenta: argumento)<textarea class="rp" rows="2" placeholder="ex.:\ndata:\nclima: Recife"></textarea></label>
+    <label class="f" style="display:flex;gap:8px;align-items:center"><input type="checkbox" class="ra"> ativa</label>`;
+  box.querySelector(".rn").value = r.nome || ""; box.querySelector(".rh").value = r.hora || "08:00";
+  box.querySelector(".rd").value = r.dias || "todo dia"; box.querySelector(".rp").value = (r.passos || []).join("\n");
+  box.querySelector(".ra").checked = r.ativa !== false;
+  box.querySelector(".x").onclick = () => box.remove();
+  return box;
+}
+function pintarCores() {
+  const box = $("edcores"); box.innerHTML = "";
+  HUES.forEach((h, i) => {
+    const b = document.createElement("button"); b.type = "button"; b.className = i === edCor ? "on" : ""; b.title = "Cor " + (i + 1);
+    b.innerHTML = `<span class="bl">${blobSVG(h, FORMA_DA_COR[i])}</span>`;
+    b.onclick = () => { edCor = i; pintarCores(); };
+    box.appendChild(b);
+  });
+  $("edavatar").innerHTML = blobSVG(HUES[edCor], FORMA_DA_COR[edCor]);
+}
+let ferramentasInfo = [];
+function abrirEditor(a) {
+  edAgente = a; edCor = a ? a.cor : agentesLista.length % HUES.length;
+  $("edtitle").textContent = a ? "Editar " + a.nome : "Novo agente";
+  $("ednome").value = a?.nome || ""; $("edfuncao").value = a?.funcao || ""; $("ederro").textContent = "";
+  const tg = $("edtools"); tg.innerHTML = "";
+  for (const t of ferramentasInfo) {
+    const [icon, label] = LABELS[t.name] || ["gear", t.name];
+    const l = document.createElement("label"); l.title = `${t.name}: ${t.desc}`;
+    l.innerHTML = `<input type="checkbox" value="${t.name}">${ICON(icon)}<span></span>`;
+    l.querySelector("span").textContent = label; l.querySelector("input").checked = !!a?.ferramentas.includes(t.name);
+    tg.appendChild(l);
+  }
+  const rb = $("edrotinas"); rb.innerHTML = "";
+  (a?.rotinas || []).forEach((r) => rb.appendChild(rotinaHTML(r)));
+  pintarCores();
+  const m = $("editor"); m.hidden = false; m.classList.remove("closing"); modalOpen = true;
+  setTimeout(() => $("ednome").focus(), 30);
+}
+function fecharEditor() {
+  const m = $("editor"); m.classList.add("closing"); modalOpen = false;
+  setTimeout(() => { m.hidden = true; m.classList.remove("closing"); }, 160);
+}
+$("edaddrot").onclick = () => $("edrotinas").appendChild(rotinaHTML());
+$("edcancel").onclick = fecharEditor;
+$("editor").addEventListener("click", (e) => { if (e.target.id === "editor") fecharEditor(); });
+$("editor").addEventListener("keydown", (e) => { if (e.key === "Escape") { e.stopPropagation(); fecharEditor(); } });
+$("edform").onsubmit = async (e) => {
+  e.preventDefault();
+  const dados = {
+    id: edAgente?.id, nome: $("ednome").value, funcao: $("edfuncao").value, cor: edCor,
+    ferramentas: [...$("edtools").querySelectorAll("input:checked")].map((i) => i.value),
+    rotinas: [...$("edrotinas").querySelectorAll(".rot")].map((b) => ({
+      id: b.dataset.id || undefined, nome: b.querySelector(".rn").value, hora: b.querySelector(".rh").value,
+      dias: b.querySelector(".rd").value, passos: b.querySelector(".rp").value.split("\n"), ativa: b.querySelector(".ra").checked })),
+  };
+  try {
+    const res = await api("/api/agentes", { agente: dados });
+    const a = await res.json();
+    if (!res.ok) { $("ederro").textContent = a.erro || "Não deu para salvar."; return; }
+    fecharEditor();
+    await carregarAgentes();
+    if (!edAgente) vazioAgente(a.id);
+    else if (logDe(a.id).querySelector(".ag-empty")) vazioAgente(a.id);
+    abrirContato(a.id);
+  } catch (err) { $("ederro").textContent = "Sem conexão com o servidor."; }
+};
+async function apagarAgente(a) {
+  if (!await ask(`Apagar ${a.nome}?`, "O agente, as rotinas e a conversa com ele vão sumir. Não dá para desfazer.", "Apagar")) return;
+  try { await api("/api/agentes/apagar", { agente: a.id }); } catch (e) { return snack("Sem conexão com o servidor.", null); }
+  store.del(AG_KEY(a.id)); logs[a.id]?.remove(); delete logs[a.id]; carregados.delete(a.id);
+  await carregarAgentes();
+  abrirContato("lia");
+}
+
+// ---------- grupo do conselho: cada rodada de debate (em qualquer chat) aparece aqui
+const clog = $("c-log");
+let round = null, roundN = 0, debating = false, streamDe = "lia";
+function salvarSala() {
+  const rs = clog.querySelectorAll(".round");
+  for (let i = 0; i < rs.length - 40; i++) rs[i].remove();  // guarda as 40 rodadas mais recentes
+  store.set("lia-conselho", councilSnapshot());
+}
+function councilEmpty() {
+  round = null;
+  clog.innerHTML = "";
+  const e = document.createElement("div"); e.className = "c-empty";
+  e.appendChild(avatar("conselho"));
+  e.insertAdjacentHTML("beforeend", "<h2>Conselho</h2><p>Quando você manda uma mensagem para a Lia ou um agente, os papéis debatem aqui antes da resposta.</p>");
+  clog.appendChild(e);
+}
+function newRound() {
+  clog.querySelector(".c-empty")?.remove();
+  roundN = Math.max(0, ...[...clog.querySelectorAll(".round")].map((r) => +r.dataset.r)) + 1;
+  round = document.createElement("div"); round.className = "round"; round.dataset.r = roundN;
+  round.dataset.chat = nomeDe(streamDe);
+  const h = document.createElement("div"); h.className = "round-head";
+  h.textContent = `rodada ${roundN} · no chat ${streamDe === "lia" ? "da Lia" : "de " + nomeDe(streamDe)} · ${now()}`;
+  round.appendChild(h);
+  clog.appendChild(round);
+  councilMsg({ de: null, texto: lastSent, id: 0 });
+}
+function councilMsg(ev) {
+  const m = document.createElement("div");
+  const quem = ev.de || "Você";
+  m.className = "cm" + (ev.de ? "" : " you") + (ev.privado ? " priv" : "");
+  m.dataset.id = ev.id; m.dataset.de = quem;
+  const replied = ev.resp ? round.querySelector(`.cm[data-id="${ev.resp}"]`) : null;
+  m.appendChild(avatar(ev.de || "voce"));
+  const b = document.createElement("div"); b.className = "cb";
+  b.innerHTML = '<div class="ch"><b></b><time></time></div>';
+  b.querySelector("b").textContent = quem; b.querySelector("time").textContent = now();
+  if (ev.privado) b.querySelector(".ch").insertAdjacentHTML("beforeend", "<small>· bastidores</small>");
+  if (replied) {
+    const q = document.createElement("div"); q.className = "cq";
+    q.textContent = "↩ " + replied.dataset.de + ": " + replied.querySelector(".ct").textContent;
+    q.dataset.goto = ev.resp; b.appendChild(q);
+  }
+  const t = document.createElement("div"); t.className = "ct"; t.textContent = ev.texto; b.appendChild(t);
+  const r = document.createElement("div"); r.className = "cr"; b.appendChild(r);
+  m.appendChild(b);
+  round.appendChild(m);
+  if (contato !== "conselho") naoLidos.add("conselho");
+  if (contato === "conselho") scroll();
+}
+function councilReact(ev) {
+  const m = round?.querySelector(`.cm[data-id="${ev.msg}"]`);
+  if (!m) return;
+  const box = m.querySelector(".cr");
+  let rx = [...box.children].find((x) => x.dataset.e === ev.emoji);
+  if (!rx) { rx = document.createElement("span"); rx.className = "rx"; rx.dataset.e = ev.emoji; rx.dataset.who = ""; box.appendChild(rx); }
+  const who = rx.dataset.who ? rx.dataset.who.split(",") : [];
+  if (!who.includes(ev.de)) who.push(ev.de);
+  rx.dataset.who = who.join(","); rx.title = who.join(", ");
+  rx.innerHTML = ""; rx.append(ev.emoji);
+  const i = document.createElement("i"); i.textContent = who.join(", "); rx.append(i);
+  if (ev.emoji === "⭐") round.dataset.vencedor = m.dataset.de;
+  if (contato === "conselho") scroll();
+}
+function typing(nome) {
+  const box = $("c-typing"); box.innerHTML = "";
+  if (!nome) return;
+  box.append(avatar(nome));
+  const faz = PAPEIS[nome]?.faz || "decidindo";
+  const t = document.createElement("span"); t.textContent = `${nome} está ${faz}`; box.append(t);
+  box.insertAdjacentHTML("beforeend", '<span class="dots"><i></i><i></i><i></i></span>');
+  if (thinking) {
+    let w = thinking.querySelector(".wt");
+    if (!w) { w = document.createElement("span"); w.className = "wt"; thinking.querySelector(".msg").appendChild(w); }
+    w.textContent = `${nome} está ${faz}…`;
+  }
+  if (contato === "conselho") scroll();
+}
+function setDebating(on) { debating = on; if (!on) typing(null); }
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function councilEvent(ev) {
+  if (!round || round.dataset.done) { newRound(); setDebating(true); renderContatos(); }
+  if (ev.ev === "digitando") return typing(ev.de);
+  if (ev.ev === "msg") { councilMsg(ev); await sleep(contato === "conselho" ? 380 : 30); }
+  else if (ev.ev === "reacao") { councilReact(ev); await sleep(contato === "conselho" ? 160 : 0); }
+}
+// a linha na conversa: quem debateu, quantas propostas, e o atalho para a rodada no grupo
+function addDebate(ev) {
+  if (round) { round.dataset.done = "1"; if (!ev.propostas[0]?.papeis.includes("Direta")) round.dataset.trocou = "1"; }
+  setDebating(false); salvarSala();
+  const r = row("bot");
+  const b = document.createElement("button"); b.className = "debate-link"; b.dataset.round = roundN; b.title = ev.veredito;
+  const faces = document.createElement("span"); faces.className = "faces";
+  for (const n of Object.keys(PAPEIS)) faces.appendChild(avatar(n, "ag"));
+  const t = document.createElement("span");
+  t.innerHTML = "<b>Conselho</b> · " + ev.propostas.length + " propostas";
+  const go = document.createElement("span"); go.className = "go"; go.textContent = "ver debate ›";
+  b.append(faces, t, go);
+  r.appendChild(b); scroll();
+}
+// repasse: o agente avisa no grupo e o pedido vai para o chat de quem cuida dele
+function postarRepasse(de, ev, texto) {
+  if (!round) newRound();
+  const id = 900 + round.querySelectorAll(".cm").length;
+  const acao = LABELS[ev.tool]?.[1] || ev.tool;
+  councilMsg({ de: nomeDe(de), texto: `@${ev.nome} ${acao} é contigo: “${texto}”`, id });
+  councilReact({ msg: id, de: ev.nome, emoji: "👍" });
+  salvarSala();
+}
+async function goToRound(n) {
+  await abrirContato("conselho");
+  const el = clog.querySelector(`.round[data-r="${n}"]`);
+  if (!el) return;
+  el.scrollIntoView({ block: "start", behavior: "smooth" });
+  el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash");
+}
+document.addEventListener("click", (e) => { const b = e.target.closest(".debate-link"); if (b) goToRound(b.dataset.round); });
+clog.addEventListener("click", (e) => {
+  const q = e.target.closest(".cq");
+  if (!q) return;
+  const m = q.closest(".round").querySelector(`.cm[data-id="${q.dataset.goto}"]`);
+  if (!m) return;
+  m.scrollIntoView({ block: "center", behavior: "smooth" });
+  m.classList.remove("hl"); void m.offsetWidth; m.classList.add("hl");
+});
+function councilSnapshot() {
+  const c = clog.cloneNode(true);
+  c.querySelectorAll(".hl, .flash").forEach((e) => e.classList.remove("hl", "flash"));
+  c.querySelectorAll(".round").forEach((e) => { e.dataset.done = "1"; });
+  return c.querySelector(".round") ? c.innerHTML : "";
+}
+function showCouncil(html) {
+  if (html) { clog.innerHTML = html; round = clog.querySelector(".round:last-of-type"); }
+  else councilEmpty();
+  setDebating(false);
+}
+$("infobtn").onclick = () => abrirDetalhes(!detalhesAberto());
+$("d-close").onclick = () => abrirDetalhes(false);
+
 // ---------- eventos do servidor
+let pump = Promise.resolve();
+function enqueue(ev) {
+  pump = pump.then(() => (ev.type === "conselho" ? councilEvent(ev) : handle(ev))).catch((e) => console.error(e));
+}
+let repasse = null;
 function handle(ev) {
-  if (ev.type === "token") {
+  if (ev.type === "handoff") {
+    repasse = ev;
+  } else if (ev.type === "debate") {
+    clearThinking(); addDebate(ev); showThinking();
+  } else if (ev.type === "token") {
     clearThinking();
     if (!bubble) bubble = addMsg("bot", "", "typing");
     const sp = document.createElement("span"); sp.className = "tk"; sp.textContent = ev.text;
@@ -566,7 +1254,9 @@ function handle(ev) {
 }
 
 async function stream(path, body) {
-  setBusy(true);
+  body = { ...body, agente: contato };
+  streamDe = contato;
+  setBusy(true); renderContatos();
   if (!thinking && !pendingCard && path === "/api/chat") showThinking();
   try {
     const res = await api(path, body);
@@ -580,7 +1270,7 @@ async function stream(path, body) {
       let i;
       while ((i = buf.indexOf("\n")) >= 0) {
         const line = buf.slice(0, i); buf = buf.slice(i + 1);
-        if (line.trim()) handle(JSON.parse(line));
+        if (line.trim()) enqueue(JSON.parse(line));
       }
     }
   } catch (e) {
@@ -588,22 +1278,34 @@ async function stream(path, body) {
     addMsg("bot", "Perdi a conexão com o servidor (" + e.message + "). Ele ainda tá rodando?", "alert");
     setOnline(false);
   } finally {
+    await pump;
+    setDebating(false);
     clearThinking();
     if (bubble) bubble.classList.remove("typing");
-    bubble = null; setBusy(false); save(); syncTurns();
+    bubble = null; setBusy(false); save(); syncTurns(); renderContatos();
     if (!pendingCard) input.focus();
+  }
+  if (repasse) {
+    const ev = repasse, de = contato, texto = lastSent;
+    repasse = null;
+    postarRepasse(de, ev, texto);
+    await abrirContato(ev.para);
+    send(texto, nomeDe(de));
   }
 }
 
-function send(text) {
+function send(text, encaminhadoDe) {
   text = text.trim();
-  if (!text || busy) return;
+  if (!text || busy || contato === "conselho") return;
+  log.querySelector(".ag-empty")?.remove();
   if (pendingCard) {
     pendingCard.querySelector(".actions")?.remove();
     setResult(pendingCard, "cancelado: mensagem nova"); pendingCard = null;
   }
   lastSent = text;
-  addMsg("user", text);
+  const um = addMsg("user", text);
+  if (encaminhadoDe) um.title = "encaminhado por " + encaminhadoDe;
+  if (encaminhadoDe) um.insertAdjacentHTML("afterbegin", `<small style="display:block;opacity:.7;font-size:11.5px">↪ encaminhado por ${encaminhadoDe.replace(/[<&]/g, "")}</small>`);
   input.value = ""; input.style.height = ""; sendBtn.disabled = true;
   stream("/api/chat", { text });
 }
@@ -621,8 +1323,8 @@ function persist() {
   while (!store.set(CHATS_KEY, JSON.stringify(chats)) && chats.length > 1) chats.pop();  // sem espaço: some a mais antiga
   store.set(CUR_KEY, currentId);
 }
-function snapshot() {
-  const clone = log.cloneNode(true);
+function snapshot(el = log) {
+  const clone = el.cloneNode(true);
   clone.querySelectorAll(".row.thinking").forEach((e) => e.remove());
   clone.querySelectorAll(".actions, .tool.wait .st, .tool.ask .st").forEach((e) => e.remove());
   clone.querySelectorAll(".typing").forEach((e) => e.classList.remove("typing"));
@@ -630,6 +1332,12 @@ function snapshot() {
   return clone.innerHTML;
 }
 function save() {
+  salvarSala();
+  if (contato === "conselho") return;
+  if (contato !== "lia") {
+    if (log.querySelector(".row")) gravarAgente(contato, { html: snapshot() });
+    return renderContatos();
+  }
   if ($("empty") || !log.querySelector(".row.user")) return;
   let c = current();
   if (!c) { c = { id: currentId, title: "", turns: [] }; chats.unshift(c); }
@@ -639,6 +1347,13 @@ function save() {
 }
 let syncing = Promise.resolve();
 function syncTurns() {  // guarda o contexto do modelo junto da conversa (para reabrir depois)
+  if (contato !== "lia" && contato !== "conselho") {
+    const id = contato;
+    syncing = (async () => {
+      try { gravarAgente(id, { turns: (await (await api("/api/turns?agente=" + encodeURIComponent(id))).json()).turns }); } catch (e) {}
+    })();
+    return;
+  }
   const c = current();
   if (!c) return;
   syncing = (async () => {
@@ -675,6 +1390,7 @@ function showChat(c) {
   requestAnimationFrame(scroll);
 }
 async function openChat(id) {
+  if (contato !== "lia") await abrirContato("lia");
   if (busy || id === currentId) return closeHistoryIfOverlay();
   const c = chats.find((x) => x.id === id);
   if (!c) return;
@@ -685,11 +1401,12 @@ async function openChat(id) {
   input.focus();
 }
 async function newChat() {
+  if (contato !== "lia") await abrirContato("lia");
   if (busy) return;
   await syncing;
   try { await api("/api/reset", {}); } catch (e) {}
   currentId = newId(); pendingCard = null; store.set(CUR_KEY, currentId);
-  showEmpty(); renderHistory(); closeHistoryIfOverlay(); input.focus();
+  showEmpty(); renderHistory(); renderContatos(); closeHistoryIfOverlay(); input.focus();
 }
 // diálogo de confirmação no estilo da interface (Enter confirma, Esc cancela)
 let modalOpen = false;
@@ -721,7 +1438,8 @@ function snack(text, onUndo) {
   const s = $("snack");
   $("snacktext").textContent = text; s.classList.add("show");
   clearTimeout(s._h); s._h = setTimeout(() => s.classList.remove("show"), 6000);
-  $("snackbtn").onclick = () => { s.classList.remove("show"); clearTimeout(s._h); onUndo(); };
+  $("snackbtn").hidden = !onUndo;
+  $("snackbtn").onclick = () => { s.classList.remove("show"); clearTimeout(s._h); onUndo?.(); };
 }
 async function deleteChat(id) {
   const c = chats.find((x) => x.id === id);
@@ -763,9 +1481,10 @@ if (store.get("lia-painel") === "0") document.body.classList.add("hist-closed");
 
 // ---------- configurações
 function openSettings(open) { $("settings").classList.toggle("open", open); $("shade").classList.toggle("open", open); }
-$("gear").onclick = () => openSettings(!$("settings").classList.contains("open"));
+$("gear").onclick = $("gear2").onclick = () => openSettings(!$("settings").classList.contains("open"));
 $("close").onclick = $("shade").onclick = () => openSettings(false);
 $("auto").onchange = () => api("/api/settings", { auto: $("auto").checked });
+$("conselho").onchange = () => api("/api/settings", { conselho: $("conselho").checked });
 $("temp").oninput = () => { $("tempval").textContent = $("temp").value; };
 $("temp").onchange = () => api("/api/settings", { temperature: parseFloat($("temp").value) });
 $("voice").checked = store.get("voz") === "1";
@@ -787,7 +1506,7 @@ function applyTheme(v, animate) {
 document.querySelectorAll("#theme button").forEach((b) => b.onclick = () => applyTheme(b.dataset.v, true));
 applyTheme(store.get("tema") || "auto");
 
-$("newchat").onclick = $("newchat2").onclick = newChat;
+$("newchat").onclick = newChat;
 
 // ---------- teclado
 $("form").onsubmit = (e) => { e.preventDefault(); send(input.value); };
@@ -804,6 +1523,7 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     if ($("settings").classList.contains("open")) openSettings(false);
     else if (narrow() && historyOpen()) toggleHistory(false);
+    else if (narrow1180() && detalhesAberto()) abrirDetalhes(false);
     else if (pendingCard && !busy) pendingCard._answer(false);
   } else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "o") { e.preventDefault(); newChat(); }
   else if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === "b") { e.preventDefault(); toggleHistory(!historyOpen()); }
@@ -812,13 +1532,15 @@ document.addEventListener("keydown", (e) => {
 // ---------- conexão e informações
 function setOnline(on, text) {
   online = on;
-  if (text) $("status").textContent = text;
+  if (text) statusLia = text;
+  if (text && contato === "lia") $("status").textContent = text;
 }
 async function loadInfo() {
   try {
     const info = await (await api("/api/info")).json();
     setOnline(true, `${(info.params / 1e6).toFixed(1)}M parâmetros · ${info.apps} apps` + (info.simulado ? " · modo simulado" : ""));
-    $("auto").checked = info.auto;
+    $("auto").checked = info.auto; $("conselho").checked = info.conselho;
+    ferramentasInfo = info.tools;
     $("temp").value = info.temperature; $("tempval").textContent = info.temperature;
     $("toollist").innerHTML = "";
     for (const t of info.tools) {
@@ -847,12 +1569,23 @@ setInterval(async () => {
   try {
     const evs = await (await api("/api/events")).json();
     if (!online) loadInfo();
-    for (const ev of evs) notifyReminder(ev.text);
+    for (const ev of evs) {
+      if (ev.type === "rotina") {
+        addRotina(ev.agente, ev.nome, ev.texto);
+        const t = $("toast"); t.textContent = `🔁 ${nomeDe(ev.agente)}: ${ev.nome}`; t.classList.add("show");
+        clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 6000);
+        if ($("notif").checked && window.Notification?.permission === "granted") {
+          try { new Notification(nomeDe(ev.agente) + " · " + ev.nome, { body: ev.texto, tag: "lia-" + Date.now() }); } catch (e) {}
+        }
+      } else notifyReminder(ev.text);
+    }
   } catch (e) { if (online) setOnline(false, "sem conexão com o servidor"); }
 }, 4000);
 
 // ---------- início: reabre a última conversa (e o contexto dela no modelo)
 (async () => {
+  showCouncil(store.get("lia-conselho") || "");
+  if (store.get("lia-detalhes") === "0") document.body.classList.add("details-closed");
   const c = current();
   if (c?.html) {
     showChat(c);
@@ -861,7 +1594,10 @@ setInterval(async () => {
     showEmpty();
   }
   renderHistory();
-  loadInfo();
+  await loadInfo();
+  await carregarAgentes();
+  const ultimo = store.get("lia-contato");
+  abrirContato(ultimo && (ultimo === "conselho" || agente(ultimo)) ? ultimo : "lia");
 })();
 </script>
 </body>

@@ -5,6 +5,8 @@ Chat no terminal.
     python chat.py --auto          # executa ferramentas sem pedir confirmação
     python chat.py --voz           # lê as respostas em voz alta (vozes do Windows)
     python chat.py --simular       # ferramentas não abrem nada de verdade
+    python chat.py --sem-conselho  # responde direto, sem o debate entre papéis (conselho.py)
+    python chat.py --debate        # mostra o debate do conselho antes de cada resposta
 
 Comandos dentro do chat: /ajuda
 """
@@ -27,6 +29,8 @@ HELP = f"""{DIM}Comandos:
   /reset         começa uma conversa nova
   /auto          liga/desliga executar ferramentas sem perguntar
   /temp 0.7      criatividade (0 = sempre a mesma resposta, 1 = solta)
+  /conselho      liga/desliga o debate entre papéis antes de responder
+  /debate        liga/desliga mostrar o debate
   /voz           liga/desliga leitura em voz alta
   /ferramentas   lista o que eu sei fazer
   /apps          lista os apps que encontrei no seu PC
@@ -53,6 +57,8 @@ def main():
     ap.add_argument("--voz", action="store_true")
     ap.add_argument("--simular", action="store_true", help="ferramentas em modo simulado")
     ap.add_argument("--temperature", type=float, default=0.7)
+    ap.add_argument("--sem-conselho", action="store_true", help="responde direto, sem o debate entre papéis")
+    ap.add_argument("--debate", action="store_true", help="mostra o debate do conselho")
     args = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
     try:
@@ -62,14 +68,15 @@ def main():
     tools.DRY_RUN = args.simular
 
     print(f"{DIM}Carregando...{RESET}", end="\r")
-    bot = Assistant(args.ckpt, temperature=args.temperature)
+    bot = Assistant(args.ckpt, temperature=args.temperature, conselho=not args.sem_conselho)
     tools.APPS.load()
     tools.REMINDER_LISTENERS.append(lambda t: print(f"\n{YELLOW}{BOLD}⏰ Lembrete: {t}{RESET}\n> ", end="", flush=True))
     i = bot.info
     print(f"{BOLD}mini-GPT{RESET} {DIM}· {i['params'] / 1e6:.1f}M parâmetros · treino {i['iter']} passos · "
           f"{len(tools.APPS.apps or [])} apps encontrados{RESET}")
-    print(f"{DIM}Confirmação antes de abrir coisas: {'desligada' if args.auto else 'ligada'}. /ajuda para comandos.{RESET}\n")
-    auto, voz = args.auto, args.voz
+    print(f"{DIM}Confirmação antes de abrir coisas: {'desligada' if args.auto else 'ligada'}. "
+          f"Conselho: {'ligado' if bot.usar_conselho else 'desligado'}. /ajuda para comandos.{RESET}\n")
+    auto, voz, debate = args.auto, args.voz, args.debate
 
     def confirm(name, arg):
         ans = input(f"  {YELLOW}↳ {name}: {arg}{RESET}  executar? [S/n] ").strip().lower()
@@ -99,6 +106,12 @@ def main():
                     print(f"{DIM}Temperatura {bot.temperature}.{RESET}\n")
                 except ValueError:
                     print(f"{DIM}Use: /temp 0.7{RESET}\n")
+            elif cmd == "/conselho":
+                bot.usar_conselho = not bot.usar_conselho
+                print(f"{DIM}Conselho {'ligado' if bot.usar_conselho else 'desligado'}.{RESET}\n")
+            elif cmd == "/debate":
+                debate = not debate
+                print(f"{DIM}Debate {'visível' if debate else 'escondido'}.{RESET}\n")
             elif cmd == "/voz":
                 voz = not voz
                 print(f"{DIM}Voz {'ligada' if voz else 'desligada'}.{RESET}\n")
@@ -117,7 +130,10 @@ def main():
         print(f"{CYAN}", end="", flush=True)
         reply = ""
         for ev in bot.chat(text, confirm=confirm, auto=auto):
-            if ev["type"] == "token":
+            if ev["type"] == "conselho" and debate and ev["ev"] == "msg" and not ev["privado"]:
+                color = YELLOW if ev["de"] == "Revisora" else DIM
+                print(f"{RESET}{color}  {ev['de']}: {ev['texto']}{RESET}{CYAN}")
+            elif ev["type"] == "token":
                 print(ev["text"], end="", flush=True)
             elif ev["type"] == "text":
                 reply = ev["text"]

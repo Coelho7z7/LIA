@@ -11,14 +11,19 @@ Ciclo de uma resposta:
 
 O KV cache é mantido entre as falas: cada turno novo só processa os tokens novos,
 em vez de reler a conversa inteira.
+
+Com o conselho ligado (conselho.py), a primeira fala depois de uma mensagem do usuário
+é decidida por vários papéis em vez de sair direto do modelo.
 """
 
 import codecs
+import copy
 from pathlib import Path
 
 import torch
 
 import tools
+from conselho import Conselho
 from model import GPT, GPTConfig, apply_repetition_penalty, sample_next
 from tokenizer import BPETokenizer
 
@@ -32,7 +37,7 @@ FAITHFUL = {"calcular": "Dá {v}.", "hora": "São {v}.", "data": "Hoje é {v}.",
 
 class Assistant:
     def __init__(self, ckpt_path="out/chat.pt", device=None, temperature=0.7, top_k=40, top_p=0.9,
-                 repetition_penalty=1.1, max_reply_tokens=160, max_tool_steps=4):
+                 repetition_penalty=1.1, max_reply_tokens=160, max_tool_steps=4, conselho=False):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         if not Path(ckpt_path).exists():
             raise FileNotFoundError(f"{ckpt_path} não existe. Treine primeiro: python train.py --stage sft")
@@ -48,6 +53,10 @@ class Assistant:
         t = self.tok
         # Tokens que nunca fazem sentido no meio de uma fala do assistente.
         self.banned_in_text = [t.bos, t.user, t.result, t.call, t.assistant]
+        self.usar_conselho = conselho
+        self.ferramentas = None  # None = pode tudo; um agente (agentes.py) só pode as dele
+        self.conselho = Conselho(self.model, t, top_k=top_k, top_p=top_p, repetition_penalty=repetition_penalty,
+                                 max_reply_tokens=max_reply_tokens)
         self.reset()
 
     # ------------------------------------------------------------ histórico
@@ -98,10 +107,26 @@ class Assistant:
           {"type": "token", "text": ...}                      pedaço de texto (streaming)
           {"type": "text", "text": ...}                       fala de texto terminada
           {"type": "call", "tool", "arg", "confirm": bool}    chamada de ferramenta pronta
+          {"type": "conselho", "ev": ...}                      só com o conselho: o debate ao vivo (conselho.py)
+          {"type": "debate", "propostas", "veredito"}          só com o conselho: resumo, antes da fala
         """
         tok = self.tok
         prompt = self._context() + [tok.assistant]
         logits = self._prefill(prompt)
+
+        if self.usar_conselho and self.turns and self.turns[-1][0] == "user":
+            # O conselho só lê o cache (já com o prompt); a fala escolhida entra no histórico e
+            # o próximo _prefill processa só ela.
+            self.conselho.temperature = self.temperature
+            win, props, veredito = yield from self.conselho.rodada(self.cache, logits, self.turns[-1][1])
+            yield {"type": "debate", "propostas": [p.resumo() for p in props], "veredito": veredito}
+            if win.kind == "call":
+                yield from self._call(win.ids)
+            else:
+                self.turns.append(("assistant", win.text, [tok.assistant] + win.ids + [tok.end]))
+                yield {"type": "token", "text": win.text}
+                yield {"type": "text", "text": win.text}
+            return
 
         # Decisão texto x ferramenta: se <|call|> é o token mais provável, é ferramenta.
         if int(logits.argmax()) == tok.call:
@@ -114,21 +139,7 @@ class Assistant:
                     break
                 gen.append(t)
                 logits = self._feed(t)
-            text = tok.decode(gen[1:]).strip()
-            parsed = tools.parse_call(text)
-            if parsed:
-                name, arg = parsed
-                self.turns.append(("call", text, [tok.assistant] + gen + [tok.end]))
-                self.pending = (name, arg)
-                yield {"type": "call", "tool": name, "arg": arg, "confirm": tools.TOOLS[name].confirm}
-                return
-            # Chamada inválida (ferramenta que não existe): responde algo seguro.
-            ids, _ = tok.encode_turn("assistant", FALLBACK_TEXT)
-            self.turns.append(("assistant", FALLBACK_TEXT, ids))
-            self.cache.reset()
-            self.cache_ids = []
-            yield {"type": "token", "text": FALLBACK_TEXT}
-            yield {"type": "text", "text": FALLBACK_TEXT}
+            yield from self._call(gen)
             return
 
         # Logo depois de uma ferramenta de valor, a resposta é conferida antes de
@@ -172,6 +183,43 @@ class Assistant:
             yield {"type": "token", "text": text}
         self.turns.append(("assistant", text, ids))
         yield {"type": "text", "text": text}
+
+    def _call(self, gen):
+        """Fecha uma chamada gerada (`gen` começa com <|call|>): valida e deixa pendente."""
+        tok = self.tok
+        text = tok.decode(gen[1:]).strip()
+        parsed = tools.parse_call(text)
+        if parsed:
+            name, arg = parsed
+            self.turns.append(("call", text, [tok.assistant] + gen + [tok.end]))
+            self.pending = (name, arg)
+            yield {"type": "call", "tool": name, "arg": arg, "confirm": tools.TOOLS[name].confirm}
+            return
+        # Chamada inválida (ferramenta que não existe): responde algo seguro.
+        ids, _ = tok.encode_turn("assistant", FALLBACK_TEXT)
+        self.turns.append(("assistant", FALLBACK_TEXT, ids))
+        self.cache.reset()
+        self.cache_ids = []
+        yield {"type": "token", "text": FALLBACK_TEXT}
+        yield {"type": "text", "text": FALLBACK_TEXT}
+
+    def irma(self, ferramentas=None):
+        """Outro assistente com o MESMO modelo (sem carregar de novo) e conversa própria: um agente."""
+        b = copy.copy(self)
+        b.ferramentas = set(ferramentas) if ferramentas is not None else None
+        b.reset()
+        return b
+
+    def pode(self, ferramenta):
+        return self.ferramentas is None or ferramenta in self.ferramentas
+
+    def desviar(self, texto):
+        """Desfaz a chamada pendente (fora da função deste agente) e responde `texto` no lugar."""
+        self.pending = None
+        if self.turns and self.turns[-1][0] == "call":
+            self.turns.pop()
+        ids, _ = self.tok.encode_turn("assistant", texto)
+        self.turns.append(("assistant", texto, ids))
 
     def resolve(self, approved=True):
         """Executa (ou cancela) a chamada pendente e coloca o resultado no histórico."""

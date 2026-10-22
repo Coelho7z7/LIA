@@ -78,6 +78,8 @@ você digita ──► tokenizador BPE ──► Transformer (KV cache) ──�
 | `prepare.py` | Treina o tokenizador e transforma textos e conversas em tokens |
 | `train.py` | Treino em duas etapas: pré-treino (seus textos) e chat (SFT) |
 | `agent.py` | O "cérebro": histórico, KV cache entre turnos, chamada de ferramentas |
+| `conselho.py` | Vários papéis propõem a fala, uma revisora critica e a Lia decide (veja abaixo) |
+| `agentes.py` | Os agentes que você cria: função, ferramentas, rotinas com horário (veja abaixo) |
 | `chat.py` / `web.py` | Interface no terminal / no navegador (`web/index.html`) |
 | `eval.py` | Mede acerto em pedidos que o modelo nunca viu |
 | `treinar.py` | Roda tudo em sequência |
@@ -103,6 +105,72 @@ você digita ──► tokenizador BPE ──► Transformer (KV cache) ──�
   aleatório por sessão, então um site aberto no navegador não consegue mandá-la abrir
   coisas. O que você digita nunca vira token especial, ou seja, digitar `<|call|>`
   não finge uma chamada de ferramenta.
+
+## O conselho (vários papéis debatem antes de responder)
+
+Inspirado no modo multiagente do Grok: em vez de uma resposta só, vários papéis propõem
+a próxima fala, uma revisora aponta os problemas e a Lia junta tudo e decide. Vem ligado
+(desligue no Ajustes da interface, com `/conselho` no terminal ou com `--sem-conselho`).
+
+Na interface, o contato **Conselho** é um chat em grupo só para acompanhar: a cada
+mensagem sua (para a Lia ou para um agente) abre uma rodada, e os papéis vão mandando
+mensagens à medida que terminam o trabalho, respondendo e reagindo uns aos outros
+(👍 concordo, 👎 tem problema, ✅ conferido, ⭐ escolhida), com os bastidores de cada um (a
+chance que o modelo deu, os trechos que a Copista testou, o placar da Lia). Na conversa,
+**ver debate** leva à rodada. No terminal, `--debate` mostra o debate antes de cada resposta.
+
+As falas dos papéis são frases prontas preenchidas com o que cada um fez de verdade (a
+proposta, a crítica, o placar): com ~28M parâmetros, o modelo não consegue escrever o
+debate sozinho. Pelo mesmo motivo, cada papel é um jeito diferente de usar o **mesmo
+modelo** e a crítica é feita por regras conferidas nos dados:
+
+| Papel | O que faz |
+|---|---|
+| Direta | o que o modelo faria sozinho |
+| Cética | defende o caminho contrário: se a Direta quer ferramenta, propõe só conversar (e vice-versa) |
+| Exploradora | sorteia outra versão no mesmo caminho (outra ferramenta, outro argumento, outra frase) |
+| Copista | testa cada trecho do que você digitou como argumento e fica com o mais provável para o modelo |
+| Revisora | não propõe: confere a ferramenta, se o argumento é um trecho do pedido, se o pedido fala de volume mesmo... |
+| Lia | junta: chance que o modelo dá a cada caminho + votos + notas da revisora |
+
+As regras da Revisora vêm de medir os dados de treino: o argumento de `pesquisar`,
+`abrir_app`, `lembrete` etc. é **sempre** um trecho seguido do pedido, e pedidos de
+volume, mídia, hora, clima etc. falam do assunto em mais de 99% dos casos. Então
+"descoriu" (quando você escreveu "descobriu") e "bem também" virando "aumenta o volume"
+são erros do modelo, e o conselho troca por outra proposta.
+
+Só a primeira fala depois da sua mensagem passa pelo conselho (é ali que se decide entre
+conversar e usar ferramenta). Custa algumas passadas a mais do modelo por mensagem.
+
+No `eval.py` (os mesmos 920 casos nunca vistos), `python eval.py --conselho`:
+
+| | rota | ferramenta | argumento | papo que não vira ferramenta | lembrete | pergunta geral |
+|---|---|---|---|---|---|---|
+| `treino-v7` sozinho | 99% | 97% | 90% | 85% | 60% | 68% |
+| `treino-v7` + conselho | 99% | 98% | 94% | 98% | 100% | 88% |
+
+Nenhum tipo de pedido piorou. O que sobra é quase todo do próprio modelo preferir uma
+versão mais curta do pedido ("youtube: o espaço" em vez de "documentário sobre o espaço").
+
+## Seus agentes (cada um com uma função)
+
+Na lateral da interface, abaixo da Lia e do Conselho, ficam os agentes que **você** cria
+em **Novo agente**. Cada um é um contato com conversa própria e tem:
+
+- **nome, cor e função** (o que ele faz, em palavras);
+- **ferramentas que só ele usa** (ex.: Música = mídia, volume e YouTube);
+- **rotinas com horário** (ex.: "todo dia às 22:00: `volume: menos`, `midia: pausar`"),
+  que o `web.py` roda sozinho e posta no chat do agente. Também dá para **rodar agora**.
+
+O modelo é o mesmo para todos (a Lia): a função define o que cada agente **pode** fazer.
+Pedido fora da função é repassado: o agente avisa no grupo ("@Lia pesquisar no Google é
+contigo") e a mensagem vai para o chat de quem tem a ferramenta, ou para a Lia, que tem
+todas. As rotinas rodam as ferramentas direto, sem passar pelo modelo, então fazem
+exatamente o que você configurou.
+
+Os agentes ficam em `memoria/agentes.json` (fora do git); a conversa com cada um fica no
+navegador. Habilidade nova de verdade (ler e-mail, por exemplo) ainda é uma ferramenta nova
+em `tools.py` mais exemplos no `make_dialogues.py` e um treino novo.
 
 ## Treino na GPU (a receita do modelo atual)
 
@@ -177,7 +245,8 @@ O que mais fez diferença:
   parâmetros e muitos dados.
 - O bate-papo é em grande parte "decorado" das conversas de treino. Ela recombina,
   mas não cria ideias novas.
-- Lembretes vivem enquanto o chat/web estiver aberto.
+- Lembretes vivem enquanto o chat/web estiver aberto. As rotinas dos agentes também só
+  rodam com o `web.py` aberto (se o PC estava dormindo, rodam com até 1h de atraso).
 - Feito para Windows (menu Iniciar, teclas de mídia, pastas do sistema). Em Linux/Mac
   a conversa funciona, mas várias ferramentas ficam limitadas.
 

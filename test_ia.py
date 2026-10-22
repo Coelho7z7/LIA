@@ -143,6 +143,102 @@ def test_agent():
     return bot
 
 
+def test_conselho(bot):
+    print("Conselho")
+    from conselho import Proposta, _trechos
+
+    def nota(user, call):
+        p = Proposta("call", call, [], ["Direta"])
+        bot.conselho.revisar(p, user)
+        return p.ajuste, p.notas
+
+    aj, notas = nota("quem descobriu o Brasil?", "pesquisar: quem descoriu o Brasil")
+    check("revisora pega palavra fora do pedido", notas, aj < 0)
+    check("argumento copiado certinho passa", nota("quem descobriu o Brasil?", "pesquisar: quem descobriu o Brasil")[1],
+          nota("quem descobriu o Brasil?", "pesquisar: quem descobriu o Brasil")[0] == 0)
+    check("argumento salteado é cobrado", nota("busca melhores filmes de 2025", "pesquisar: melhores de 2025")[1],
+          nota("busca melhores filmes de 2025", "pesquisar: melhores de 2025")[0] < 0)
+    check("papo não vira volume", nota("bem também", "volume: mais")[1], nota("bem também", "volume: mais")[0] < 0)
+    check("pedido de volume passa", nota("aumenta o som aí", "volume: mais")[1], nota("aumenta o som aí", "volume: mais")[0] == 0)
+    check("gatilho aceita letras trocadas", nota("blouqeia o pc", "bloquear:")[1], nota("blouqeia o pc", "bloquear:")[0] == 0)
+    check("lembrete no formato tempo | texto", nota("lembrete pra dormir em 10 min", "lembrete: 10 min | dormir")[1],
+          nota("lembrete pra dormir em 10 min", "lembrete: 10 min | dormir")[0] == 0)
+    check("ferramenta inventada é descartada", nota("oi", "hackear: tudo")[1], nota("oi", "hackear: tudo")[0] == float("-inf"))
+    tr = _trechos("então, quem descobriu o Brasil?")
+    check("trechos do pedido sem pontuação nas pontas", tr[-1], "quem descobriu o Brasil" in tr and "então" in tr)
+
+    bot.reset()
+    bot.usar_conselho = True
+    events = list(bot.chat("oi, tudo bem?"))
+    sala = [e for e in events if e["type"] == "conselho"]
+    msgs = [e for e in sala if e["ev"] == "msg"]
+    quem = {m["de"] for m in msgs}
+    check("todos os papéis falam na sala", sorted(quem), {"Direta", "Exploradora", "Cética", "Revisora", "Lia"} <= quem)
+    ids = {m["id"] for m in msgs}
+    ok = all(m["resp"] in ids for m in msgs if m["resp"]) and all(e["msg"] in ids for e in sala if e["ev"] == "reacao")
+    check("respostas e reações apontam para mensagens que existem", len(msgs), ok)
+    resumo = [i for i, e in enumerate(events) if e["type"] == "debate"]
+    check("debate vem antes da resposta", resumo, resumo and all(e["type"] == "conselho" for e in events[:resumo[0]]))
+    check("conselho termina com uma fala", events[-1]["type"], events[-1]["type"] in ("text", "result"))
+    bot.add_user("e agora?")
+    prompt = bot._context() + [bot.tok.assistant]
+    with torch.no_grad():
+        cached = bot._prefill(prompt)
+        full = bot.model(torch.tensor([prompt], device=bot.device))[0][0, -1]
+    err = (cached - full).abs().max().item()
+    check("cache continua certo depois do conselho", f"{err:.1e}", err < 1e-4)
+    bot.usar_conselho = False
+    return bot
+
+
+def test_agentes(bot):
+    print("Agentes")
+    from datetime import datetime
+    import agentes
+    import web
+    antiga, T.MEMORY_DIR = T.MEMORY_DIR, pathlib.Path(tempfile.mkdtemp())  # nunca mexe na memória de verdade
+    try:
+        m = agentes.gravar({"nome": "Música", "ferramentas": ["midia", "volume"],
+                            "rotinas": [{"nome": "Noite", "hora": "22:00", "dias": "dias úteis", "passos": ["volume: menos"]}]})
+        check("cria agente com rotina", m["id"], m["rotinas"][0]["passos"] == ["volume: menos"])
+
+        def recusa(dados):
+            try:
+                agentes.gravar(dados)
+                return False
+            except ValueError:
+                return True
+
+        check("recusa agente sem ferramenta", "", recusa({"nome": "X", "ferramentas": []}))
+        check("recusa horário inválido", "", recusa({"nome": "Y", "ferramentas": ["hora"],
+                                                     "rotinas": [{"nome": "a", "hora": "25:00", "passos": ["hora:"]}]}))
+        check("recusa passo fora das ferramentas", "", recusa({"nome": "Z", "ferramentas": ["hora"],
+                                                              "rotinas": [{"nome": "a", "hora": "08:00", "passos": ["volume: mais"]}]}))
+        check("recusa nome repetido", "", recusa({"nome": "música", "ferramentas": ["hora"]}))
+        lista = agentes.carregar()
+        qui, sab = datetime(2026, 10, 22, 22, 30), datetime(2026, 10, 24, 22, 30)
+        check("rotina roda no horário (dia útil)", "", len(list(agentes.devidas(lista, qui))) == 1)
+        check("rotina não roda fora dos dias", "", not list(agentes.devidas(lista, sab)))
+        check("rotina não roda antes da hora", "", not list(agentes.devidas(lista, qui.replace(hour=21))))
+        check("relatório da rotina", agentes.rodar(m["rotinas"][0]), "volume: menos" in agentes.rodar(m["rotinas"][0]))
+
+        p = agentes.gravar({"nome": "Pesquisa", "ferramentas": ["pesquisar", "hora"]})
+        irma = bot.irma(p["ferramentas"])
+        check("agente usa o mesmo modelo, com conversa própria", "", irma.model is bot.model and irma.turns is not bot.turns)
+        irma.add_user("aumenta o volume")
+        irma.turns.append(("call", "volume: mais", [irma.tok.assistant, irma.tok.call] + irma.tok.encode("volume: mais") + [irma.tok.end]))
+        irma.pending = ("volume", "mais")
+        evs = list(web.repassar(irma, p["id"], {"tool": "volume", "arg": "mais"}))
+        check("pedido fora da função vai para quem cuida", evs[0].get("nome"), evs[0]["para"] == m["id"])
+        check("repasse não executa nada", irma.turns[-1][0], irma.pending is None and irma.turns[-1][0] == "assistant")
+        agentes.apagar(m["id"])
+        evs = list(web.repassar(irma, p["id"], {"tool": "volume", "arg": "mais"}))
+        check("sem agente para a ferramenta, vai para a Lia", evs[0]["para"], evs[0]["para"] == "lia")
+    finally:
+        T.MEMORY_DIR = antiga
+    return bot
+
+
 def test_web(bot):
     print("Servidor web")
     import json
@@ -183,6 +279,6 @@ if __name__ == "__main__":
     test_kv_cache()
     test_tokenizer()
     test_tools()
-    test_web(test_agent())
+    test_web(test_agentes(test_conselho(test_agent())))
     print(f"\n{'Tudo certo!' if not failures else f'{failures} falha(s).'}")
     sys.exit(1 if failures else 0)

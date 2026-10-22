@@ -4,6 +4,7 @@ termos reservados para teste pelo make_dialogues.py).
 
     python eval.py
     python eval.py --n 60 --erros 20
+    python eval.py --conselho      # a primeira fala passa pelo conselho (conselho.py)
 
 Para cada pedido, confere:
   rota       decidiu certo entre conversar e usar ferramenta?
@@ -18,6 +19,7 @@ from collections import defaultdict
 import torch
 
 import tools
+from conselho import Conselho
 from make_dialogues import eval_cases
 from model import GPT, GPTConfig
 from tokenizer import BPETokenizer
@@ -41,6 +43,16 @@ def predict(model, tok, user_text):
             break
         gen.append(t)
     return "call", tok.decode(gen).strip()
+
+
+@torch.no_grad()
+def predict_conselho(conselho, model, tok, user_text):
+    """Igual a predict(), mas quem decide é o conselho."""
+    ids = [tok.bos] + tok.encode_turn("user", user_text)[0] + [tok.assistant]
+    cache = model.new_cache()
+    logits, _ = model(torch.tensor([ids], device=model.tok_emb.weight.device), cache=cache)
+    win, _, _ = conselho.decidir(cache, logits[0, -1], user_text)
+    return ("call", win.text) if win.kind == "call" else ("assistant", None)
 
 
 @torch.no_grad()
@@ -74,6 +86,7 @@ def main():
     ap.add_argument("--ckpt", default="out/chat.pt")
     ap.add_argument("--n", type=int, default=40, help="casos por tipo de pedido")
     ap.add_argument("--erros", type=int, default=12, help="quantos erros mostrar")
+    ap.add_argument("--conselho", action="store_true", help="decide a primeira fala com o conselho")
     args = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
 
@@ -82,7 +95,12 @@ def main():
     model = GPT(GPTConfig(**ckpt["config"])).eval()
     model.load_state_dict(ckpt["model"])
     model.to("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Modelo: {args.ckpt} (passo {ckpt['iter']}, val loss {ckpt['best_val']:.3f})\n")
+    print(f"Modelo: {args.ckpt} (passo {ckpt['iter']}, val loss {ckpt['best_val']:.3f})"
+          + (" · com conselho" if args.conselho else "") + "\n")
+    conselho = None
+    if args.conselho:
+        conselho = Conselho(model, tok)
+        torch.manual_seed(0)  # o conselho sorteia propostas: mesma semente, mesmo resultado
 
     stats = defaultdict(lambda: [0, 0, 0, 0])  # total, rota, ferramenta, argumento
     faithful = defaultdict(lambda: [0, 0])  # respostas que repetem o valor certo / total
@@ -96,7 +114,8 @@ def main():
             faithful[c["kind"]][1] += 1
             if not hit:
                 unfaithful.append((c["result"], reply))
-        role, out = predict(model, tok, c["user"])
+        role, out = (predict_conselho(conselho, model, tok, c["user"]) if conselho
+                     else predict(model, tok, c["user"]))
         s = stats[c["kind"]]
         s[0] += 1
         route = role == c["role"]
