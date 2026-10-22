@@ -62,10 +62,13 @@ export const formatarData = (d) => `${DIAS[(d.getDay() + 6) % 7]}, ${d.getDate()
 export function toExpr(expr) {  // _to_python do tools.py
   let s = stripAccents(expr.replaceAll("×", "*").replaceAll("÷", "/").replaceAll("^", "**").replaceAll("√", " raiz de "));
   s = s.replaceAll("?", " ").replaceAll("=", " ").replace(/\s+/g, " ").trim();
-  s = s.replace(/^(quanto e|quanto da|calcula|calcule|resolve)\s+/, "");
+  s = s.replace(/^(qual (e )?o resultado de|o resultado de|qual (e )?a conta de|quanto e|quanto da|calcula|calcule|resolve)\s+/, "");
   s = s.replace(/(\d),(\d)/g, "$1.$2");
   s = s.replace(/(\d+(?:\.\d+)?)\s*(%|por cento)\s*(de|do|da|sobre)\s*/g, "$1/100*");
   s = s.replace(/(\d+(?:\.\d+)?)\s*(%|por cento)/g, "($1/100)");
+  for (const [pal, op] of [["(?:a )?metade", "/2"], ["(?:o )?dobro", "*2"], ["(?:o )?triplo", "*3"], ["um terco", "/3"], ["um quarto", "/4"]]) {
+    s = s.replace(new RegExp(pal + " (?:de|do|da)\\s*(\\d+(?:\\.\\d+)?)", "g"), "($1" + op + ")");  // "metade de 350" -> (350/2)
+  }
   for (const [a, b] of [["raiz quadrada de", "sqrt "], ["raiz de", "sqrt "], ["raiz", "sqrt "],
     ["ao quadrado", "**2"], ["ao cubo", "**3"], ["elevado ao", "**"], ["elevado a", "**"],
     ["vezes", "*"], ["multiplicado por", "*"], ["dividido por", "/"], ["divido por", "/"],

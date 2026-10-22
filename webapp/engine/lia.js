@@ -6,12 +6,27 @@ import { Modelo } from "./model.js";
 import { Tokenizer } from "./tokenizer.js";
 
 export const FALLBACK_TEXT = "Hmm, me enrolei aqui. Fala de outro jeito?";
+export const TRAVA = 0.9;  // trava de confiança: igual ao agent.py
 // Ferramentas cujo resultado é um VALOR que a resposta tem que repetir certinho.
 export const FAITHFUL = {
   calcular: "Dá {v}.", hora: "São {v}.", data: "Hoje é {v}.", clima: "Olha só: {v}.",
   recordar: "Pelo que você me contou: {v}.", ver_notas: "Suas últimas notas: {v}.",
   consultar: "Segundo a Wikipédia: {v}",
 };
+
+// Mensagem delicada (saúde mental): o apoio_se_preciso do agent.py. Risco à vida -> sempre a resposta de apoio com o
+// CVV; mensagem delicada -> se a resposta sair comemorando, troca pela de apoio.
+export const APOIO = "Sinto muito que você esteja passando por isso. Você não precisa enfrentar sozinho: conversar com alguém de " +
+  "confiança ou com um profissional ajuda muito. Se quiser falar com alguém agora, o CVV atende 24 horas pelo 188, de graça.";
+const RISCO = /\b(me matar|suicid\w*|tirar (a )?minha (propria )?vida|vontade de morrer|quero morrer|me machucar|nao quero mais viver|acabar com a minha vida)/u;
+const DELICADO = /\b(depress\w*|(com|muita|minha) ansiedade|crise de (choro|panico|ansiedade)|nao aguento mais|sem vontade de viver|me sinto um lixo|muito pra baixo|sindrome do panico)/u;
+const ALEGRE = ["que bom", "parabens", "que demais", "merecido", "comemora", "que otimo", "aproveita", "adoro ouvir"];
+export function apoioSePreciso(fala, resposta) {
+  const f = norm(fala), r = norm(resposta);
+  if (RISCO.test(f) && !resposta.includes("188")) return APOIO;
+  if (DELICADO.test(f) && ALEGRE.some((a) => r.includes(a))) return APOIO;
+  return null;
+}
 
 // tools.norm do Python: minúsculas, sem acento, sem pontuação estranha, espaços simples
 export function norm(s) {
@@ -87,8 +102,11 @@ export class Lia {
   // Garante que o cache contém `prompt` e devolve os logits do último token.
   prefill(prompt) {
     const limit = this.model.Tmax - this.maxReplyTokens;
-    if (prompt.length > limit) {  // conversa longa: esquece os turnos mais antigos
-      while (this.context().length + 1 > limit && this.turns.length > 1) this.turns.shift();
+    if (prompt.length > limit) {
+      // Conversa longa: esquece os turnos mais antigos de uma vez, até sobrar ~60% do espaço. Esquecer o mínimo
+      // obrigava a reler a conversa inteira em TODA fala (9-18 s no navegador); assim relê só de vez em quando.
+      const keep = Math.floor(limit * 0.6);
+      while (this.context().length + 1 > keep && this.turns.length > 1) this.turns.shift();
       prompt = [...this.context(), this.tok.assistant];
       if (prompt.length > limit) prompt = [this.tok.bos, ...prompt.slice(-(limit - 1))];
       this.cache.pos = 0; this.cacheIds = [];
@@ -114,7 +132,13 @@ export class Lia {
     let best = 0;
     for (let i = 1; i < logits.length; i++) if (logits[i] > logits[best]) best = i;
 
-    if (best === tok.call) {  // se <|call|> é o mais provável, é ferramenta
+    let quer = best === tok.call;  // se <|call|> é o mais provável, é ferramenta...
+    if (quer && this.turns.length && this.turns[this.turns.length - 1][0] === "user") {
+      let soma = 0;  // ...desde que, logo depois da fala do usuário, a confiança passe da trava
+      for (let i = 0; i < logits.length; i++) soma += Math.exp(logits[i] - logits[best]);
+      quer = 1 / soma >= TRAVA;
+    }
+    if (quer) {
       const gen = [tok.call];
       logits = this.feed(tok.call);
       const copia = this.fixas ? new Copia(this.fixas, this.turns.map((t) => t[1]).join(" ")) : null;
@@ -154,6 +178,8 @@ export class Lia {
     }
     // Respostas recentes dela: se sair igualzinha a uma delas, gera de novo (até 2 vezes).
     // O evento "text" do fim troca o que já apareceu na tela.
+    // Resumo da Wikipédia é longo: aparece enquanto é gerado (se a cópia sair errada, o "text" do fim troca).
+    const mostra = !must || must[0] === "consultar";
     const recentes = new Set(this.turns.slice(-6).filter((t) => t[0] === "assistant").map((t) => norm(t[1])));
     const start = this.cacheIds.length, last = this.cacheIds[start - 1];
     let gen = [], text = "";
@@ -173,11 +199,11 @@ export class Lia {
         if (t === tok.end) break;
         gen.push(t);
         const piece = decoder.decode(tok.vocab[t], { stream: true });
-        if (piece && !must && !tentativa) yield { type: "token", text: piece };
+        if (piece && mostra && !tentativa) yield { type: "token", text: piece };
         logits = this.feed(t);
       }
       const tail = decoder.decode();
-      if (tail && !must && !tentativa) yield { type: "token", text: tail };
+      if (tail && mostra && !tentativa) yield { type: "token", text: tail };
       text = tok.decode(gen).trim();
       if (must || !recentes.has(norm(text)) || tentativa === 2) break;
       // repetiu: volta o cache para o fim do prompt e sorteia de novo
@@ -192,9 +218,17 @@ export class Lia {
       if (!norm(text).includes(norm(value))) {
         text = FAITHFUL[name].replace("{v}", value);
         ids = tok.encodeTurn("assistant", text);
-        this.cache.pos = 0; this.cacheIds = [];  // o cache tem a resposta errada; refaz na próxima
+        // o cache tem a resposta errada: volta só até o começo dela (a conversa antes continua valendo)
+        this.cache.pos = start; this.cacheIds = this.cacheIds.slice(0, start);
       }
-      yield { type: "token", text };
+      if (!mostra) yield { type: "token", text };
+    }
+    const fala = [...this.turns].reverse().find((t) => t[0] === "user");
+    const seguro = apoioSePreciso(fala ? fala[1] : "", text);
+    if (seguro) {  // o "text" do fim troca o que apareceu na tela
+      text = seguro;
+      ids = tok.encodeTurn("assistant", text);
+      this.cache.pos = start; this.cacheIds = this.cacheIds.slice(0, start);
     }
     this.turns.push(["assistant", text, ids]);
     yield { type: "text", text };

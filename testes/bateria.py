@@ -62,13 +62,14 @@ def confere(esperado, calls, reply=""):
     return False
 
 
-def rodar(ckpt, cpu):
+def rodar(ckpt, cpu, trava=0, porteiro=None):
     from agent import Assistant
     tools.DRY_RUN = True
     mem = RES / "_memoria_teste"
     tools.MEMORY_DIR = mem
-    bot = Assistant(str(ROOT / ckpt), device="cpu" if cpu else None)
-    nome = Path(ckpt).parent.name
+    from trava import aplicar
+    bot = aplicar(Assistant(str(ROOT / ckpt), device="cpu" if cpu else None, porteiro=porteiro), trava)
+    nome = Path(ckpt).parent.name + ("_trava" if trava else "") + ("_porteiro" if porteiro else "")
     RES.mkdir(exist_ok=True)
     out, log = [], []
     k = 0
@@ -137,13 +138,15 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ckpt", default="out/chat.pt")
     ap.add_argument("--cpu", action="store_true")
+    ap.add_argument("--trava", type=float, default=0, help="trava de confiança (ex.: 0.9); ver testes/trava.py")
+    ap.add_argument("--porteiro", default=None, help="caminho do porteiro.pt (ver porteiro.py)")
     ap.add_argument("--comparar", nargs=2, metavar=("A", "B"))
     args = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
     if args.comparar:
         comparar(*args.comparar)
     else:
-        rodar(args.ckpt, args.cpu)
+        rodar(args.ckpt, args.cpu, args.trava, args.porteiro)
 
 
 if __name__ == "__main__":

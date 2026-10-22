@@ -55,7 +55,10 @@ def main():
               "5/0", "sqrt(-1)", "round(2.5)", "round(3.14159, 2)", "2**200", "quanto é 3 x 4?", "√81", "10 % 3", "-7 % 3",
               "1/3", "2/3*3", "0.1+0.2", "123456789*1000", "12345.678*1000", "(1+2)*(3+4)", "pi*2", "abc", "2 3", "", "3 +",
               "log de 1000", "ln(e)", "seno de 0", "2 elevado a 10", "5 ao quadrado", "9 ao cubo", "50 por cento de 80",
-              "1000000000000000*10", "0,0001*0,5", "99999*99999", "7 dividido por 2", "8 sobre 2", "1.5e-07*1"]
+              "1000000000000000*10", "0,0001*0,5", "99999*99999", "7 dividido por 2", "8 sobre 2", "1.5e-07*1",
+              "metade de 350", "a metade de 7", "o dobro de 21", "o triplo de 15", "um terço de 90", "um quarto de 100",
+              "metade de 2,5", "quanto é metade de 1000?", "dobro de 0", "um terço de 10", "o resultado de 185 - 45 * 18",
+              "qual o resultado de 7 x 8", "qual é a conta de 3+3", "o resultado de raiz de 144"]
     durs = list(DURATIONS) + [g.rand_duration() for _ in range(200)]
     durs += ["meia hora", "1h30", "2 h e 15", "uma hora e meia", "abc", "0 minutos", "10 dias", "90", "1,5 horas",
              "dez minutos e trinta segundos", "30 seg", "3 min", "duas horas", "8 dias"]

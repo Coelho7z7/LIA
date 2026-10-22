@@ -44,7 +44,26 @@ export function carregarPesos(manifest, buffer) {
 function matmul(X, T, W, off, rows, cols, Y) {
   for (let r = 0; r < rows; r++) {
     const b = off + r * cols;
-    for (let t = 0; t < T; t++) {
+    let t = 0;
+    // Leitura do contexto (vários tokens): 4 tokens por passada, cada peso lido uma vez serve aos 4.
+    // A soma de cada token segue na mesma ordem do caso de 1 token, então o resultado é idêntico.
+    for (; t + 4 <= T; t += 4) {
+      const x0 = t * cols, x1 = x0 + cols, x2 = x1 + cols, x3 = x2 + cols;
+      let a0 = 0, a1 = 0, a2 = 0, a3 = 0, b0 = 0, b1 = 0, b2 = 0, b3 = 0;
+      let c0 = 0, c1 = 0, c2 = 0, c3 = 0, d0 = 0, d1 = 0, d2 = 0, d3 = 0;
+      for (let i = 0; i < cols; i += 4) {
+        const w0 = W[b + i], w1 = W[b + i + 1], w2 = W[b + i + 2], w3 = W[b + i + 3];
+        a0 += w0 * X[x0 + i]; a1 += w1 * X[x0 + i + 1]; a2 += w2 * X[x0 + i + 2]; a3 += w3 * X[x0 + i + 3];
+        b0 += w0 * X[x1 + i]; b1 += w1 * X[x1 + i + 1]; b2 += w2 * X[x1 + i + 2]; b3 += w3 * X[x1 + i + 3];
+        c0 += w0 * X[x2 + i]; c1 += w1 * X[x2 + i + 1]; c2 += w2 * X[x2 + i + 2]; c3 += w3 * X[x2 + i + 3];
+        d0 += w0 * X[x3 + i]; d1 += w1 * X[x3 + i + 1]; d2 += w2 * X[x3 + i + 2]; d3 += w3 * X[x3 + i + 3];
+      }
+      Y[t * rows + r] = a0 + a1 + a2 + a3;
+      Y[(t + 1) * rows + r] = b0 + b1 + b2 + b3;
+      Y[(t + 2) * rows + r] = c0 + c1 + c2 + c3;
+      Y[(t + 3) * rows + r] = d0 + d1 + d2 + d3;
+    }
+    for (; t < T; t++) {
       const xb = t * cols;
       let s0 = 0, s1 = 0, s2 = 0, s3 = 0;
       for (let i = 0; i < cols; i += 4) {

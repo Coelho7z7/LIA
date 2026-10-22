@@ -400,10 +400,12 @@ def _eval(node):
 def _to_python(expr):
     s = strip_accents(expr.replace("×", "*").replace("÷", "/").replace("^", "**").replace("√", " raiz de "))
     s = re.sub(r"\s+", " ", s.replace("?", " ").replace("=", " ")).strip()
-    s = re.sub(r"^(quanto e|quanto da|calcula|calcule|resolve)\s+", "", s)
+    s = re.sub(r"^(qual (e )?o resultado de|o resultado de|qual (e )?a conta de|quanto e|quanto da|calcula|calcule|resolve)\s+", "", s)
     s = re.sub(r"(\d),(\d)", r"\1.\2", s)  # vírgula decimal
     s = re.sub(r"(\d+(?:\.\d+)?)\s*(%|por cento)\s*(de|do|da|sobre)\s*", r"\1/100*", s)
     s = re.sub(r"(\d+(?:\.\d+)?)\s*(%|por cento)", r"(\1/100)", s)
+    for pal, op in [("(?:a )?metade", "/2"), ("(?:o )?dobro", "*2"), ("(?:o )?triplo", "*3"), ("um terco", "/3"), ("um quarto", "/4")]:
+        s = re.sub(pal + r" (?:de|do|da)\s*(\d+(?:\.\d+)?)", r"(\1" + op + ")", s)  # "metade de 350" -> (350/2)
     for a, b in [("raiz quadrada de", "sqrt "), ("raiz de", "sqrt "), ("raiz", "sqrt "),
                  ("ao quadrado", "**2"), ("ao cubo", "**3"), ("elevado ao", "**"), ("elevado a", "**"),
                  ("vezes", "*"), ("multiplicado por", "*"), ("dividido por", "/"), ("divido por", "/"),
