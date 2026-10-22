@@ -200,6 +200,7 @@ def test_agentes(bot):
     import agentes
     import web
     antiga, T.MEMORY_DIR = T.MEMORY_DIR, pathlib.Path(tempfile.mkdtemp())  # nunca mexe na memória de verdade
+    web.BOT = bot
     try:
         m = agentes.gravar({"nome": "Música", "ferramentas": ["midia", "volume"],
                             "rotinas": [{"nome": "Noite", "hora": "22:00", "dias": "dias úteis", "passos": ["volume: menos"]}]})
@@ -231,11 +232,50 @@ def test_agentes(bot):
         irma.add_user("aumenta o volume")
         irma.turns.append(("call", "volume: mais", [irma.tok.assistant, irma.tok.call] + irma.tok.encode("volume: mais") + [irma.tok.end]))
         irma.pending = ("volume", "mais")
-        evs = list(web.repassar(irma, p["id"], {"tool": "volume", "arg": "mais"}))
+        evs = list(web.repassar(irma, p["id"], {"tool": "volume", "arg": "mais"}, "aumenta o volume"))
         check("pedido fora da função vai para quem cuida", evs[0].get("nome"), evs[0]["para"] == m["id"])
         check("repasse não executa nada", irma.turns[-1][0], irma.pending is None and irma.turns[-1][0] == "assistant")
+        check("menção acha o agente (sem acento, qualquer caixa)", agentes.mencao("@musica abaixa o som"),
+              agentes.mencao("@musica abaixa o som") == (m["id"], "abaixa o som"))
+        check("@todos e menção a quem não existe", "", agentes.mencao("@todos oi")[0] == "todos"
+              and agentes.mencao("@ninguem oi") == (None, "@ninguem oi"))
+        evs = list(web.drive(web.bot_de(p["id"]), p["id"], text="@Música toca lofi"))
+        check("@agente no chat de outro passa direto", evs[0].get("para"), evs[0]["type"] == "handoff"
+              and evs[0]["para"] == m["id"] and evs[0]["texto"] == "toca lofi")
+        evs = list(web.grupo("@todos quem são vocês?", ["lia", m["id"], p["id"]]))
+        falantes = [e["de"] for e in evs if e["type"] == "falante"]
+        check("@todos no grupo: cada um se apresenta", falantes, falantes == ["lia", m["id"], p["id"]])
+        evs = list(web.grupo("@Pesquisa quem é você?", [m["id"], p["id"]]))
+        check("@nome no grupo escolhe quem responde", evs[0].get("de"), evs[0] == {"type": "falante", "de": p["id"]})
+        evs = list(web.grupo("quem é você?", [m["id"], p["id"]], responder_a=m["id"]))
+        check("“Responder” no grupo fala com quem escreveu", evs[0].get("de"), evs[0]["de"] == m["id"])
+        # cada um sabe o que faz e o que os outros fazem (pelo perfil, não pelo que o modelo decorou)
+        eu = agentes.sobre(m["id"], "quem é você?")
+        check("agente se apresenta pelo perfil", eu, eu.startswith("Eu sou Música") and "mexer no volume" in eu)
+        outro = agentes.sobre(m["id"], "o que a Pesquisa faz?")
+        check("agente sabe o que o colega faz", outro, outro.startswith("Pesquisa") and "pesquisar no Google" in outro)
+        quem = agentes.sobre(p["id"], "quem mexe no volume?")
+        check("“quem faz X?” aponta o dono", quem, "Música" in quem)
+        check("pedido normal não vira apresentação", "", agentes.sobre(m["id"], "aumenta o volume") is None)
+        evs = list(web.drive(web.bot_de(m["id"]), m["id"], text="quem é você?"))
+        check("no chat, a pergunta é respondida pelo perfil", evs[-1].get("text"), evs[-1]["text"].startswith("Eu sou Música"))
+        for i in range(25):
+            agentes.registrar(m["id"], m["rotinas"][0]["id"], f"execução {i}")
+        hist = agentes.achar(m["id"])["rotinas"][0]["historico"]
+        check("histórico guarda as 20 execuções mais novas", len(hist), len(hist) == 20 and hist[0]["texto"] == "execução 24")
+        rot = m["rotinas"][0]
+        ed = agentes.gravar({"id": m["id"], "nome": "Música", "rotulo": "DJ da casa", "ferramentas": ["midia", "volume", "youtube"],
+                             "rotinas": [{"id": rot["id"], "nome": rot["nome"], "hora": "23:00", "passos": rot["passos"]}]})
+        check("editar mantém o histórico das rotinas", len(ed["rotinas"][0]["historico"]), len(ed["rotinas"][0]["historico"]) == 20)
+        check("pausar rotina", "", agentes.ativar_rotina(m["id"], rot["id"], False)["rotinas"][0]["ativa"] is False)
+        sempre = agentes.permitir(m["id"], "youtube")
+        check("“Sempre permitir” guarda a ferramenta", sempre["permitidos"], sempre["permitidos"] == ["youtube"])
+        velho = agentes._normalizar({"id": "x", "nome": "Velho", "funcao": "abre apps", "cor": 1, "ferramentas": ["abrir_app"],
+                                     "rotinas": [], "autonomo": True})
+        check("agente salvo no formato antigo vira o novo", velho, velho["rotulo"] == "abre apps" and velho["permitidos"] == ["abrir_app"]
+              and "funcao" not in velho and "autonomo" not in velho)
         agentes.apagar(m["id"])
-        evs = list(web.repassar(irma, p["id"], {"tool": "volume", "arg": "mais"}))
+        evs = list(web.repassar(irma, p["id"], {"tool": "volume", "arg": "mais"}, "aumenta o volume"))
         check("sem agente para a ferramenta, vai para a Lia", evs[0]["para"], evs[0]["para"] == "lia")
     finally:
         T.MEMORY_DIR = antiga

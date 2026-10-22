@@ -108,21 +108,17 @@ você digita ──► tokenizador BPE ──► Transformer (KV cache) ──�
 
 ## O conselho (vários papéis debatem antes de responder)
 
-Inspirado no modo multiagente do Grok: em vez de uma resposta só, vários papéis propõem
-a próxima fala, uma revisora aponta os problemas e a Lia junta tudo e decide. Vem ligado
-(desligue no Ajustes da interface, com `/conselho` no terminal ou com `--sem-conselho`).
+Em vez de uma resposta só, vários papéis propõem a próxima fala, uma revisora aponta os
+problemas e a Lia junta tudo e decide. Roda por dentro, sem aparecer na interface; vem
+ligado (desligue em Configurações → "Conselho interno", com `/conselho` no terminal ou com
+`--sem-conselho`). No terminal, `--debate` mostra o debate antes de cada resposta: os
+papéis respondem e reagem uns aos outros, com os bastidores de cada um (a chance que o
+modelo deu, os trechos que a Copista testou, o placar).
 
-Na interface, o contato **Conselho** é um chat em grupo só para acompanhar: a cada
-mensagem sua (para a Lia ou para um agente) abre uma rodada, e os papéis vão mandando
-mensagens à medida que terminam o trabalho, respondendo e reagindo uns aos outros
-(👍 concordo, 👎 tem problema, ✅ conferido, ⭐ escolhida), com os bastidores de cada um (a
-chance que o modelo deu, os trechos que a Copista testou, o placar da Lia). Na conversa,
-**ver debate** leva à rodada. No terminal, `--debate` mostra o debate antes de cada resposta.
-
-As falas dos papéis são frases prontas preenchidas com o que cada um fez de verdade (a
-proposta, a crítica, o placar): com ~28M parâmetros, o modelo não consegue escrever o
-debate sozinho. Pelo mesmo motivo, cada papel é um jeito diferente de usar o **mesmo
-modelo** e a crítica é feita por regras conferidas nos dados:
+As falas dos papéis são frases prontas preenchidas com o que cada um fez de verdade: com
+~28M parâmetros, o modelo não consegue escrever o debate sozinho. Pelo mesmo motivo, cada
+papel é um jeito diferente de usar o **mesmo modelo** e a crítica é feita por regras
+conferidas nos dados:
 
 | Papel | O que faz |
 |---|---|
@@ -152,25 +148,48 @@ No `eval.py` (os mesmos 920 casos nunca vistos), `python eval.py --conselho`:
 Nenhum tipo de pedido piorou. O que sobra é quase todo do próprio modelo preferir uma
 versão mais curta do pedido ("youtube: o espaço" em vez de "documentário sobre o espaço").
 
-## Seus agentes (cada um com uma função)
+## Seus agentes (no modelo do Grok Bot)
 
-Na lateral da interface, abaixo da Lia e do Conselho, ficam os agentes que **você** cria
-em **Novo agente**. Cada um é um contato com conversa própria e tem:
+A interface segue o [Grok Bot](https://docs.x.ai/grok-bot): a lateral é a lista de colegas
+(busca, **Novo**, a Lia e os agentes e grupos que você cria, com prévia, hora e não lidas);
+o centro é a conversa, **uma só por colega, contínua**; a direita mostra os detalhes dele.
 
-- **nome, cor e função** (o que ele faz, em palavras);
-- **ferramentas que só ele usa** (ex.: Música = mídia, volume e YouTube);
-- **rotinas com horário** (ex.: "todo dia às 22:00: `volume: menos`, `midia: pausar`"),
-  que o `web.py` roda sozinho e posta no chat do agente. Também dá para **rodar agora**.
+**Criar:** "Novo" → "Criar novo agente", ou um dos colegas sugeridos (Música, Apps,
+Pesquisa, Agenda, Tempo), que só preenchem o perfil. Cada agente tem:
 
-O modelo é o mesmo para todos (a Lia): a função define o que cada agente **pode** fazer.
-Pedido fora da função é repassado: o agente avisa no grupo ("@Lia pesquisar no Google é
-contigo") e a mensagem vai para o chat de quem tem a ferramenta, ou para a Lia, que tem
-todas. As rotinas rodam as ferramentas direto, sem passar pelo modelo, então fazem
-exatamente o que você configurou.
+- **nome, rótulo** (o trabalho principal) **e descrição** (como trabalha e as regras que
+  sempre valem), e um **avatar** (cor e forma, com olhinhos que piscam);
+- **ferramentas** que ele pode usar; pedido fora delas é **repassado** a quem cuida: o
+  agente manda "Olá, Apps! Me pediram “abre o spotify”, mas abrir app é com você." no chat
+  do outro, que faz e volta avisando ("Pronto, Música! Abri Spotify.");
+- **rotinas com horário** (ex.: "todo dia às 22:00: `volume: menos`"), que o `web.py` roda
+  sozinho e posta na conversa. Nos detalhes: **fazer um teste**, **pausar/ativar**, editar,
+  apagar e ver as **20 últimas execuções**. Na caixa de texto, `/nome da rotina` roda na hora.
 
-Os agentes ficam em `memoria/agentes.json` (fora do git); a conversa com cada um fica no
-navegador. Habilidade nova de verdade (ler e-mail, por exemplo) ainda é uma ferramenta nova
-em `tools.py` mais exemplos no `make_dialogues.py` e um treino novo.
+**Cada um sabe o que faz e o que os outros fazem:** "quem é você?", "o que o Apps faz?",
+"quem toca música?", "quem são vocês?" são respondidas pelo perfil de cada um (o modelo,
+sozinho, só saberia dizer que é "um Transformer treinado do zero").
+
+**Aprovações:** abrir apps, sites e pesquisas mostra um cartão **Permitir uma vez /
+Sempre permitir / Negar**. "Sempre permitir" vale só para aquele agente e aquela ferramenta
+(dá para desfazer nos detalhes).
+
+**Grupos:** "Novo" → "Novo grupo", de 2 a 6 colegas. Escrevendo normalmente, responde quem
+tem a ferramenta que o pedido precisa; **@nome** chama alguém, **@todos** chama todo mundo e
+**Responder** numa mensagem fala com quem a escreveu. Como no Grok Bot, a aprovação não
+aparece no grupo: o cartão vai para o chat de quem pediu, e depois ele avisa no grupo.
+
+**Menu ⋯** (no colega, ou clique com o botão direito): editar perfil, fixar no topo,
+duplicar, ocultar da barra lateral (as rotinas continuam), limpar conversa, apagar. Dá para
+**reagir** e **responder** a qualquer mensagem; os agentes (não a Lia) reagem às suas
+(👀 lendo, 👍 feito, 👉 repassado, 😕 erro). O microfone dita a mensagem.
+
+O modelo é o mesmo para todos (a Lia): o perfil define o que cada agente **pode** fazer e o
+que ele sabe sobre a equipe. Os agentes ficam em `memoria/agentes.json` (fora do git); as
+conversas e os grupos ficam no navegador. Habilidade nova de verdade (ler e-mail, por
+exemplo) ainda é uma ferramenta nova em `tools.py`, exemplos no `make_dialogues.py` e um
+treino novo. Ficaram de fora do Grok Bot o computador na nuvem de cada bot, "ensinar uma
+tarefa" gravando a tela e a memória que aprende o seu jeito.
 
 ## Treino na GPU (a receita do modelo atual)
 

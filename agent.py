@@ -210,6 +210,19 @@ class Assistant:
         b.reset()
         return b
 
+    @torch.no_grad()
+    def prever_ferramenta(self, text):
+        """Que ferramenta o modelo usaria para `text`, sem histórico nem cache da conversa? None = conversa.
+        Serve para o grupo Equipe decidir qual agente responde."""
+        tok = self.tok
+        prompt = [tok.bos] + tok.encode_turn("user", text)[0] + [tok.assistant]
+        prompt = prompt[-(self.model.cfg.block_size - self.max_reply_tokens):]
+        cache = self.model.new_cache()
+        logits, _ = self.model(torch.tensor([prompt], device=self.device), cache=cache)
+        win, _, _ = self.conselho.decidir(cache, logits[0, -1], text)
+        parsed = tools.parse_call(win.text) if win.kind == "call" else None
+        return parsed[0] if parsed else None
+
     def pode(self, ferramenta):
         return self.ferramentas is None or ferramenta in self.ferramentas
 
@@ -220,6 +233,14 @@ class Assistant:
             self.turns.pop()
         ids, _ = self.tok.encode_turn("assistant", texto)
         self.turns.append(("assistant", texto, ids))
+
+    def substituir_ultima(self, texto):
+        """Troca a última fala do assistente (o agente fala de si pelo perfil, não pelo que o modelo decorou)."""
+        if self.turns and self.turns[-1][0] == "assistant":
+            ids, _ = self.tok.encode_turn("assistant", texto)
+            self.turns[-1] = ("assistant", texto, ids)
+            self.cache.reset()  # o cache tem a fala antiga; a próxima mensagem relê a conversa
+            self.cache_ids = []
 
     def resolve(self, approved=True):
         """Executa (ou cancela) a chamada pendente e coloca o resultado no histórico."""

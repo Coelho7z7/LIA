@@ -5,8 +5,9 @@ Interface web local (só biblioteca padrão do Python, nada para instalar).
     python web.py --porta 8000 --simular
     python web.py --sem-conselho   # responde direto, sem o debate entre papéis (conselho.py)
 
-Além da Lia, a página tem os agentes que você cria (agentes.py): cada um com conversa
-própria, só as ferramentas da função dele e rotinas com horário, que este servidor roda.
+A página segue o Grok Bot: a Lia e os agentes que você cria (agentes.py) são colegas com
+conversa própria, grupos de 2 a 6, @menções, repasses entre eles, aprovações com "Permitir
+uma vez / Sempre permitir / Negar" e rotinas com horário, que este servidor roda.
 
 Segurança: o servidor só escuta em 127.0.0.1 (nenhum outro aparelho da rede
 acessa) e toda chamada da API exige um token aleatório que só a página servida
@@ -16,6 +17,7 @@ mandar a IA abrir coisas no seu PC.
 
 import argparse
 import json
+import re
 import secrets
 import sys
 import threading
@@ -38,9 +40,12 @@ TOKEN = secrets.token_urlsafe(24)
 LOCK = threading.Lock()
 STATE = {"auto": False}
 BOT = None  # a Lia
-BOTS = {}  # id do agente -> conversa dele (mesmo modelo da Lia, ver Assistant.irma)
+BOTS = {}  # id do agente (ou "lia-equipe", a Lia nos grupos) -> conversa dele, com o mesmo modelo
 EVENTS = []  # lembretes e rotinas disparados, entregues para a página na próxima consulta
 EVENTS_LOCK = threading.Lock()
+# Fala do modelo sobre si mesmo ("sou um Transformer treinado do zero no seu PC"): num agente,
+# vira a apresentação dele, tirada do perfil.
+META = re.compile(r"(transformer|parametros?\b|treinad[ao]|do zero|neuronio|\bcpu\b|\bgpu\b|processador|modelo pronto)")
 
 
 def on_reminder(text):
@@ -54,9 +59,13 @@ def on_rotina(agente, rotina, texto):
 
 
 def bot_de(agente_id):
-    """A conversa da Lia ou de um agente (criada na primeira mensagem). None se o agente não existe."""
+    """A conversa da Lia, da Lia nos grupos ("lia-equipe") ou de um agente. None se o agente não existe."""
     if not agente_id or agente_id == "lia":
         return BOT
+    if agente_id == "lia-equipe":  # nos grupos a Lia tem conversa própria (não mistura com o chat dela)
+        if agente_id not in BOTS:
+            BOTS[agente_id] = BOT.irma()
+        return BOTS[agente_id]
     a = agentes.achar(agente_id)
     if a is None:
         BOTS.pop(agente_id, None)
@@ -67,44 +76,133 @@ def bot_de(agente_id):
     return BOTS[agente_id]
 
 
-def repassar(bot, agente_id, call):
+def nome_de(agente_id):
+    return "Lia" if agente_id in ("lia", "lia-equipe") else (agentes.achar(agente_id) or {}).get("nome", "?")
+
+
+def falar(texto):
+    yield {"type": "token", "text": texto}
+    yield {"type": "text", "text": texto}
+
+
+def repassar(bot, agente_id, call, pedido):
     """Pedido fora da função deste agente: passa para quem tem a ferramenta (ou para a Lia, que tem todas)."""
     alvo = agentes.quem_faz(call["tool"], sem=agente_id)
     para, nome = (alvo["id"], alvo["nome"]) if alvo else ("lia", "Lia")
     acao = ACOES.get(call["tool"], call["tool"])
     texto = f"{acao[:1].upper() + acao[1:]} não é comigo: mandei uma mensagem para {nome}."
     bot.desviar(texto)
-    yield {"type": "handoff", "para": para, "nome": nome, "tool": call["tool"], "arg": call["arg"]}
-    yield {"type": "token", "text": texto}
-    yield {"type": "text", "text": texto}
+    yield {"type": "handoff", "para": para, "nome": nome, "tool": call["tool"], "arg": call["arg"], "texto": pedido}
+    yield from falar(texto)
 
 
-def drive(bot, agente_id="lia", text=None, approve=None):
-    """Roda o laço do assistente até uma resposta em texto, uma confirmação pendente ou um repasse."""
+def drive(bot, agente_id="lia", text=None, approve=None, em_grupo=False):
+    """
+    Roda o laço do assistente até uma resposta em texto, um pedido de aprovação ou um repasse.
+    Num grupo, a aprovação não aparece ali (como no Grok Bot): vira {"type": "aprovacao"} e o
+    cartão vai para o chat privado do agente.
+    """
+    eu = "lia" if agente_id in ("lia", "lia-equipe") else agente_id
+    perfil = agentes.achar(eu) if eu != "lia" else None
+    permitidos = set(perfil["permitidos"]) if perfil else set()
+    if text is not None:
+        # "@Apps abre o spotify": você mesmo escolheu quem faz, então passa direto, sem o modelo decidir
+        alvo, resto = agentes.mencao(text)
+        if alvo == eu:
+            text = resto
+        elif alvo not in (None, "todos") and resto:
+            if bot.pending is not None:
+                bot.resolve(False)
+            bot.add_user(text)
+            texto = f"Passei para {nome_de(alvo)}."
+            bot.desviar(texto)
+            yield {"type": "handoff", "para": alvo, "nome": nome_de(alvo), "tool": None, "arg": "", "texto": resto}
+            yield from falar(texto)
+            return
+        # "quem é você?", "o que o Apps faz?", "quem toca música?": responde pelo perfil de cada um
+        resposta = agentes.sobre(agente_id, text)
+        if resposta:
+            if bot.pending is not None:
+                bot.resolve(False)
+            bot.add_user(text)
+            bot.desviar(resposta)
+            yield from falar(resposta)
+            return
     if approve is not None:
         if bot.pending is None:
             return
         name = bot.pending[0]
         yield {"type": "result", "tool": name, "text": bot.resolve(approve)}
     if text is not None:
-        if bot.pending is not None:  # mensagem nova com confirmação em aberto = cancelar
+        if bot.pending is not None:  # mensagem nova com aprovação em aberto = negar
             bot.resolve(False)
         bot.add_user(text)
     for _ in range(bot.max_tool_steps):
         call = None
         for ev in bot.step():
             if ev["type"] == "call" and not bot.pode(ev["tool"]):
-                yield from repassar(bot, agente_id, ev)
+                yield from repassar(bot, agente_id, ev, text if text is not None else ev["arg"])
                 return
+            if perfil and ev["type"] == "token":
+                continue  # o agente fala de uma vez: dá para trocar o "sou um Transformer" antes de aparecer
+            if perfil and ev["type"] == "text":
+                fala = ev["text"]
+                if META.search(tools.norm(fala)):
+                    fala = agentes.curta(eu)
+                    bot.substituir_ultima(fala)
+                yield from falar(fala)
+                continue
             yield ev
             if ev["type"] == "call":
                 call = ev
         if call is None:
             return
-        if call["confirm"] and not STATE["auto"]:
-            yield {"type": "confirm", "tool": call["tool"], "arg": call["arg"]}
+        if call["confirm"] and not (STATE["auto"] or call["tool"] in permitidos):
+            yield {"type": "aprovacao" if em_grupo else "confirm", "tool": call["tool"], "arg": call["arg"],
+                   "de": agente_id, "quem": eu}
             return
         yield {"type": "result", "tool": call["tool"], "text": bot.resolve(True)}
+
+
+def grupo(text, membros, responder_a=None):
+    """
+    Um grupo de 2 a 6 colegas, como no Grok Bot: escrevendo normalmente, responde quem tem a
+    ferramenta que o pedido precisa; "@nome" ou "Responder" numa mensagem escolhe quem; "@todos"
+    chama todo mundo. Repasses acontecem dentro do grupo. Cada resposta vem depois de
+    {"type": "falante", "de"}.
+    """
+    lista = [a for a in agentes.carregar() if a["id"] in membros]
+    ids = (["lia"] if "lia" in membros else []) + [a["id"] for a in lista]
+    if not ids:
+        return
+    alvo, resto = agentes.mencao(text, lista)
+    if alvo not in ids + ["todos"]:
+        alvo, resto = None, text
+    if alvo is None and responder_a in ids:
+        alvo = responder_a
+    if alvo == "todos":
+        for q in ids:
+            yield {"type": "falante", "de": q}
+            yield from falar(agentes.apresentar(q, agentes.carregar()))
+        return
+    if alvo is None:
+        ferramenta = BOT.prever_ferramenta(resto)
+        dono = agentes.quem_faz(ferramenta, lista=lista) if ferramenta else None
+        alvo = dono["id"] if dono else ("lia" if "lia" in ids else ids[0])
+    for _ in range(3):  # no máximo dois repasses seguidos dentro do grupo
+        chave = "lia-equipe" if alvo == "lia" else alvo
+        bot = bot_de(chave)
+        if bot is None:
+            return
+        yield {"type": "falante", "de": alvo}
+        repasse = None
+        for ev in drive(bot, chave, text=resto, em_grupo=True):
+            if ev["type"] == "handoff":
+                repasse = ev
+            yield ev
+        if not repasse:
+            return
+        alvo, resto = repasse["para"], repasse["texto"]
 
 
 def com_proximas(a):
@@ -191,6 +289,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"erro": "mensagem vazia"}, 400)
             with LOCK:
                 self._stream(drive(bot, agente_id, text=text))
+        elif self.path == "/api/grupo":
+            text = str(data.get("text", "")).strip()[:2000]
+            membros = [str(m) for m in (data.get("membros") or [])][:6]
+            if not text or not membros:
+                return self._json({"erro": "mensagem ou grupo vazio"}, 400)
+            with LOCK:
+                self._stream(grupo(text, membros, data.get("responder")))
         elif self.path == "/api/confirm":
             with LOCK:
                 self._stream(drive(bot, agente_id, approve=bool(data.get("approve"))))
@@ -199,7 +304,7 @@ class Handler(BaseHTTPRequestHandler):
                 bot.reset()
             self._json({"ok": True})
         elif self.path == "/api/load":
-            # Reabre uma conversa salva no histórico: refaz o contexto do modelo com as falas dela.
+            # Reabre uma conversa salva: refaz o contexto do modelo com as falas dela.
             # Só vira contexto; nenhuma ferramenta é executada aqui.
             turns = data.get("turns") if isinstance(data.get("turns"), list) else []
             with LOCK:
@@ -208,7 +313,7 @@ class Handler(BaseHTTPRequestHandler):
                     role, text = (t or {}).get("role"), str((t or {}).get("text", ""))[:2000]
                     if role in ("user", "assistant", "call", "result"):
                         bot.turns.append((role, text, bot.tok.encode_turn(role, text)[0]))
-                if bot.turns and bot.turns[-1][0] == "call":  # confirmação que ficou pendente: descarta
+                if bot.turns and bot.turns[-1][0] == "call":  # aprovação que ficou pendente: descarta
                     bot.turns.pop()
             self._json({"ok": True})
         elif self.path == "/api/feedback":
@@ -235,13 +340,28 @@ class Handler(BaseHTTPRequestHandler):
             agentes.apagar(agente_id)
             BOTS.pop(agente_id, None)
             self._json({"ok": True})
+        elif self.path == "/api/agentes/permitir":
+            # "Sempre permitir" no cartão de aprovação (ou desfazer, no painel de detalhes)
+            try:
+                a = agentes.permitir(agente_id, str(data.get("tool", "")), bool(data.get("sim", True)))
+            except ValueError as e:
+                return self._json({"erro": str(e)}, 400)
+            self._json(com_proximas(a))
         elif self.path == "/api/rotina":
-            # "Rodar agora": executa os passos da rotina na hora (não conta como a execução do dia).
+            # "Fazer um teste": executa os passos da rotina na hora (não conta como a execução do dia).
             a = agentes.achar(agente_id)
             r = next((r for r in (a or {}).get("rotinas", []) if r["id"] == data.get("rotina")), None)
             if r is None:
                 return self._json({"erro": "rotina não encontrada"}, 404)
-            self._json({"nome": r["nome"], "texto": agentes.rodar(r)})
+            texto = agentes.rodar(r)
+            agentes.registrar(a["id"], r["id"], texto)
+            self._json({"nome": r["nome"], "texto": texto})
+        elif self.path == "/api/rotina/ativa":
+            try:
+                a = agentes.ativar_rotina(agente_id, str(data.get("rotina", "")), bool(data.get("ativa")))
+            except ValueError as e:
+                return self._json({"erro": str(e)}, 400)
+            self._json(com_proximas(a))
         elif self.path == "/api/settings":
             todos = [BOT, *BOTS.values()]
             if "auto" in data:
