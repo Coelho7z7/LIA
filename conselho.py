@@ -368,6 +368,7 @@ class Conselho:
             m = msg("Direta", rng.choice(["Acho que é só papo. Eu diria: “{t}”", "Não vejo pedido aqui. Eu responderia: “{t}”"])
                     .format(t=_curto(p.text)))
         origem[chave(p)] = direta = m["id"]
+        yield reacao(0, "Direta", "👀")  # a mensagem 0 é a sua, que abre a rodada
         yield m
         yield msg("Direta", f"Chance de usar ferramenta, segundo o modelo: {_pct(p_call)}. "
                             "Fui sempre no token mais provável.", privado=True)
@@ -394,6 +395,7 @@ class Conselho:
             p, _ = add("text", self._text(cache, text_logits, self.temperature), "Cética")
             m = msg("Cética", f"E se não for pra fazer nada? Eu só responderia: “{_curto(p.text)}”", resp=direta)
             chance = 1 - p_call
+            yield reacao(0, "Cética", "🤔")
         else:
             p, _ = add("call", self._call(cache, logits), "Cética")
             m = msg("Cética", f"E se for um pedido? Eu tentaria {descrever(p)}.", resp=direta)
@@ -463,8 +465,7 @@ class Conselho:
             f"{i + 1}. {descrever(p)} → {p.score:.2f}" if math.isfinite(p.score) else f"{i + 1}. {descrever(p)} → descartada"
             for i, p in enumerate(ranking))
         yield msg("Lia", "Placar (caminho + revisora + votos + fluência, em log de chance):\n" + placar, privado=True)
-        yield reacao(origem[chave(win)], "Lia", "⭐")
-        m = msg("Lia", veredito, resp=origem[chave(win)])
+        m = msg("Lia", veredito, resp=origem[chave(win)])  # a Lia não reage: decide respondendo à escolhida
         yield m
         for papel in win.papeis:
             yield reacao(m["id"], papel, "🎉")

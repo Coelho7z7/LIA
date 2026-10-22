@@ -72,7 +72,7 @@ def repassar(bot, agente_id, call):
     alvo = agentes.quem_faz(call["tool"], sem=agente_id)
     para, nome = (alvo["id"], alvo["nome"]) if alvo else ("lia", "Lia")
     acao = ACOES.get(call["tool"], call["tool"])
-    texto = f"{acao[:1].upper() + acao[1:]} não é comigo: é com {nome}. Já passei o pedido."
+    texto = f"{acao[:1].upper() + acao[1:]} não é comigo: mandei uma mensagem para {nome}."
     bot.desviar(texto)
     yield {"type": "handoff", "para": para, "nome": nome, "tool": call["tool"], "arg": call["arg"]}
     yield {"type": "token", "text": texto}

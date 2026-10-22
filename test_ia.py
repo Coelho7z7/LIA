@@ -175,8 +175,11 @@ def test_conselho(bot):
     quem = {m["de"] for m in msgs}
     check("todos os papéis falam na sala", sorted(quem), {"Direta", "Exploradora", "Cética", "Revisora", "Lia"} <= quem)
     ids = {m["id"] for m in msgs}
-    ok = all(m["resp"] in ids for m in msgs if m["resp"]) and all(e["msg"] in ids for e in sala if e["ev"] == "reacao")
+    ok = all(m["resp"] in ids for m in msgs if m["resp"]) and all(e["msg"] in ids | {0} for e in sala if e["ev"] == "reacao")
     check("respostas e reações apontam para mensagens que existem", len(msgs), ok)
+    na_sua = [e["de"] for e in sala if e["ev"] == "reacao" and e["msg"] == 0]
+    check("papéis reagem à sua mensagem (a Lia não)", na_sua, "Direta" in na_sua and "Lia" not in na_sua)
+    check("a Lia não reage a nada no grupo", "", all(e["de"] != "Lia" for e in sala if e["ev"] == "reacao"))
     resumo = [i for i, e in enumerate(events) if e["type"] == "debate"]
     check("debate vem antes da resposta", resumo, resumo and all(e["type"] == "conselho" for e in events[:resumo[0]]))
     check("conselho termina com uma fala", events[-1]["type"], events[-1]["type"] in ("text", "result"))

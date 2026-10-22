@@ -246,7 +246,42 @@
 
   /* ---------- contatos: a Lia, o grupo do conselho e os agentes que você cria */
   .bl { width: 40px; height: 40px; flex: none; display: block; }
-  .bl svg { width: 100%; height: 100%; display: block; }
+  .bl svg { width: 100%; height: 100%; display: block; overflow: visible; }
+  /* avatares vivos: flutuam, piscam e olham em volta; pulam quando trabalham; "^ ^" quando reagem */
+  .blob .corpo, .blob .olhos { transform-box: fill-box; }
+  .blob .corpo { transform-origin: 50% 100%; animation: flutua 3.6s ease-in-out infinite; animation-delay: var(--d, 0s); }
+  .blob .olhos { transform-origin: center; animation: pisca 4.8s infinite; animation-delay: var(--d, 0s); }
+  .blob .olhar { animation: olha 9s ease-in-out infinite; animation-delay: var(--d2, 0s); }
+  .blob .feliz { opacity: 0; }
+  .bl.feliz .blob .olhos { opacity: 0; }
+  .bl.feliz .blob .feliz { opacity: 1; }
+  @keyframes flutua { 50% { transform: translateY(-1.2px) scale(1.015, .985); } }
+  @keyframes pisca { 0%, 93%, 100% { transform: scaleY(1); } 96% { transform: scaleY(.12); } }
+  @keyframes olha { 0%, 38%, 86%, 100% { transform: translate(0, 0); } 44%, 56% { transform: translate(1.6px, -.4px); }
+                    62%, 76% { transform: translate(-1.6px, .2px); } }
+  .bl.busy .blob .corpo, .row.thinking .blob .corpo, #c-typing .blob .corpo, .contact.typing .blob .corpo {
+    animation: trabalha .55s ease-in-out infinite; }
+  .bl.busy .blob .olhar, .row.thinking .blob .olhar, #c-typing .blob .olhar, .contact.typing .blob .olhar {
+    animation: olha 1.4s ease-in-out infinite; }
+  @keyframes trabalha { 50% { transform: translateY(-2.5px) scale(.96, 1.05); } }
+  .bl.hop .blob .corpo { animation: hop .6s var(--spring); }
+  .bl.lia.hop svg { animation: hop .6s var(--spring); transform-origin: 50% 100%; }
+  @keyframes hop { 30% { transform: translateY(-5px) scale(.92, 1.1); } 65% { transform: translateY(0) scale(1.08, .92); } }
+  .contact:hover .blob .corpo, .d-id .bl:hover .blob .corpo { animation: balanca .7s ease-in-out; }
+  @keyframes balanca { 25% { transform: rotate(-8deg); } 75% { transform: rotate(8deg); } }
+  /* reação na sua mensagem (como um tapback) */
+  .row.user { position: relative; }
+  .row.reagida { margin-bottom: 14px; }
+  .tap { position: absolute; right: 8px; bottom: -15px; display: inline-flex; align-items: center; gap: 3px;
+         padding: 1px 7px 1px 3px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line);
+         box-shadow: var(--shadow); font-size: 13px; line-height: 20px; animation: pop .45s var(--spring) both; }
+  .tap .bl { width: 18px; height: 18px; }
+  .tap .bl.lia { border-radius: 5px; }
+  /* mensagem de um agente para outro (repasse) */
+  .row.from-agent .msg { background: var(--panel); color: var(--ink); border: 1px solid var(--line); }
+  .row.from-agent .msg .de { display: block; font-size: 11.5px; font-weight: 650; color: var(--muted); }
+  .row.from-agent > .bl { align-self: flex-end; }
+  .row.from-agent .tap { right: 44px; }
   .bl.lia { border-radius: 11px; background: var(--logo-bg); color: var(--logo-fg); }
   .bl.lia svg { fill: currentColor; }
   .bl.you { border-radius: 50%; background: var(--user); color: var(--user-ink); display: grid; place-items: center;
@@ -749,10 +784,21 @@ const FORMAS = {
   quadrado: ['<rect x="3" y="3" width="34" height="34" rx="12"/>', 19],
 };
 const FORMA_DA_COR = ["circulo", "gota", "nuvem", "quadrado", "triangulo", "gota", "circulo", "nuvem"];
+// camadas para animar: o corpo flutua/pula, o olhar passeia, os olhos piscam e viram "^ ^" ao reagir
 function blobSVG(h, forma) {
   const [shape, y] = FORMAS[forma];
-  return `<svg viewBox="0 0 40 40" aria-hidden="true"><g fill="hsl(${h} 72% 60%)">${shape}</g>` +
-         `<g fill="#fff"><ellipse cx="15.5" cy="${y}" rx="2.6" ry="3.8"/><ellipse cx="24.5" cy="${y}" rx="2.6" ry="3.8"/></g></svg>`;
+  return `<svg viewBox="0 0 40 40" class="blob" aria-hidden="true"><g class="corpo"><g fill="hsl(${h} 72% 60%)">${shape}</g>` +
+         `<g class="olhar"><g class="olhos" fill="#fff"><ellipse cx="15.5" cy="${y}" rx="2.6" ry="3.8"/><ellipse cx="24.5" cy="${y}" rx="2.6" ry="3.8"/></g>` +
+         `<g class="feliz" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round">` +
+         `<path d="M12.9 ${y + 1.2}q2.6-3.8 5.2 0"/><path d="M21.9 ${y + 1.2}q2.6-3.8 5.2 0"/></g></g></g></svg>`;
+}
+// pulinho (e olhinhos felizes, se a reação é boa)
+const POSITIVOS = new Set(["👍", "✅", "⭐", "🎉", "❤️", "😂", "👋", "👌"]);
+function animar(el, feliz) {
+  if (!el) return;
+  el.classList.remove("hop", "feliz"); void el.offsetWidth;
+  el.classList.add("hop"); if (feliz) el.classList.add("feliz");
+  clearTimeout(el._anim); el._anim = setTimeout(() => el.classList.remove("hop", "feliz"), 1400);
 }
 // os papéis do conselho (bastidores): não são contatos, só aparecem no grupo
 const PAPEIS = {
@@ -770,6 +816,9 @@ function nomeDe(id) { return id === "lia" ? NAME : id === "conselho" ? "Conselho
 function avatar(quem, cls = "") {
   const el = document.createElement("span");
   el.className = "bl " + cls;
+  // cada avatar no seu ritmo (senão todos piscam juntos)
+  el.style.setProperty("--d", (-Math.random() * 5).toFixed(2) + "s");
+  el.style.setProperty("--d2", (-Math.random() * 9).toFixed(2) + "s");
   const a = agente(quem) || agentePorNome(quem), p = PAPEIS[quem];
   if (quem === "lia" || quem === NAME) { el.classList.add("lia"); el.innerHTML = GLYPH; }
   else if (quem === "conselho") {
@@ -811,9 +860,11 @@ function previa(id) {
   }
   const el = logDe(id), rows = [...el.querySelectorAll(".row:not(.thinking)")], r = rows.pop();
   if (!r) return { t: id === "lia" ? "faz tudo, com todas as ferramentas" : agente(id)?.funcao || "sem mensagens ainda" };
-  const txt = r.querySelector(".msg")?.textContent || r.querySelector(".tool")?.innerText.replace(/\s+/g, " ") ||
-              r.querySelector(".debate-link")?.textContent || "";
-  return { t: (r.classList.contains("user") ? "Você: " : "") + txt, h: [...el.querySelectorAll(".time")].pop()?.textContent };
+  const msg = r.querySelector(".msg");
+  const txt = (msg && [...msg.childNodes].filter((n) => !n.classList?.contains("de")).map((n) => n.textContent).join("")) ||
+              r.querySelector(".tool")?.innerText.replace(/\s+/g, " ") || r.querySelector(".debate-link")?.textContent || "";
+  const quem = r.classList.contains("from-agent") ? r.dataset.de + ": " : r.classList.contains("user") ? "Você: " : "";
+  return { t: quem + txt, h: [...el.querySelectorAll(".time")].pop()?.textContent };
 }
 function renderContatos() {
   const box = $("contacts"); box.innerHTML = "";
@@ -906,12 +957,7 @@ const quandoTxt = (iso) => {
   return "próxima: " + (dias <= 0 ? "hoje" : dias === 1 ? "amanhã" : d.toLocaleDateString("pt-BR", { weekday: "long" })) + " às " + hh;
 };
 function rodadasDe(nome) {
-  let falou = 0, venceu = 0;
-  clog.querySelectorAll(".round").forEach((r) => {
-    if (r.dataset.chat === nome) falou++;
-    if (r.dataset.vencedor === nome) venceu++;
-  });
-  return { falou, venceu };
+  return { falou: [...clog.querySelectorAll(".round")].filter((r) => r.dataset.chat === nome).length };
 }
 function renderDetalhes() {
   $("details").appendChild($("chatlist"));  // a lista de conversas sai antes de limpar (fica escondida)
@@ -1105,7 +1151,7 @@ function newRound() {
   h.textContent = `rodada ${roundN} · no chat ${streamDe === "lia" ? "da Lia" : "de " + nomeDe(streamDe)} · ${now()}`;
   round.appendChild(h);
   clog.appendChild(round);
-  councilMsg({ de: null, texto: lastSent, id: 0 });
+  councilMsg({ de: remetente ? nomeDe(remetente) : null, texto: ultimoVisto, id: 0 });  // quem pediu: você ou um agente
 }
 function councilMsg(ev) {
   const m = document.createElement("div");
@@ -1141,7 +1187,7 @@ function councilReact(ev) {
   rx.dataset.who = who.join(","); rx.title = who.join(", ");
   rx.innerHTML = ""; rx.append(ev.emoji);
   const i = document.createElement("i"); i.textContent = who.join(", "); rx.append(i);
-  if (ev.emoji === "⭐") round.dataset.vencedor = m.dataset.de;
+  animar([...round.querySelectorAll(`.cm[data-de="${CSS.escape(ev.de)}"] > .bl`)].pop(), POSITIVOS.has(ev.emoji));
   if (contato === "conselho") scroll();
 }
 function typing(nome) {
@@ -1180,15 +1226,6 @@ function addDebate(ev) {
   b.append(faces, t, go);
   r.appendChild(b); scroll();
 }
-// repasse: o agente avisa no grupo e o pedido vai para o chat de quem cuida dele
-function postarRepasse(de, ev, texto) {
-  if (!round) newRound();
-  const id = 900 + round.querySelectorAll(".cm").length;
-  const acao = LABELS[ev.tool]?.[1] || ev.tool;
-  councilMsg({ de: nomeDe(de), texto: `@${ev.nome} ${acao} é contigo: “${texto}”`, id });
-  councilReact({ msg: id, de: ev.nome, emoji: "👍" });
-  salvarSala();
-}
 async function goToRound(n) {
   await abrirContato("conselho");
   const el = clog.querySelector(`.round[data-r="${n}"]`);
@@ -1224,10 +1261,40 @@ let pump = Promise.resolve();
 function enqueue(ev) {
   pump = pump.then(() => (ev.type === "conselho" ? councilEvent(ev) : handle(ev))).catch((e) => console.error(e));
 }
+// ---------- reações dos agentes à mensagem: 👀 ao ler, e no fim o resultado (👍 feito, 👉 repassado, 😕 erro...)
+let alvoReacao = null, reagiuFinal = false, remetente = null, ultimoVisto = "";
+function emojiConversa(texto) {
+  const t = texto.toLowerCase();
+  if (/obrigad|valeu|\bvlw\b|brigad/.test(t)) return "❤️";
+  if (/k{3,}|haha|hehe|rsrs/.test(t)) return "😂";
+  if (/^(oi+|ol[aá]|e a[ií]|eae|salve|bom dia|boa tarde|boa noite)\b/.test(t)) return "👋";
+  return null;
+}
+function reagir(msg, quem, emoji) {
+  const row = msg?.closest(".row");
+  if (!row || quem === "lia") return;  // quem reage são os agentes, a Lia não
+  row.querySelector(".tap")?.remove();
+  row.classList.toggle("reagida", !!emoji);
+  if (emoji) {
+    const t = document.createElement("span"); t.className = "tap"; t.title = nomeDe(quem) + " reagiu";
+    t.append(avatar(quem), emoji);
+    row.appendChild(t);
+    // quem reagiu dá um pulinho: a foto da última resposta na conversa e a da lateral
+    animar([...row.parentElement.querySelectorAll(".row.bot.first > .bl")].pop(), POSITIVOS.has(emoji));
+    setTimeout(() => animar(document.querySelector(`.contact[data-c="${CSS.escape(quem)}"] .bl`), POSITIVOS.has(emoji)), 0);
+  }
+  if (row.parentElement === log) scroll();
+}
+function reagirFinal(emoji) {
+  if (!alvoReacao || reagiuFinal) return;
+  reagiuFinal = true;
+  reagir(alvoReacao, streamDe, emoji);
+}
+
 let repasse = null;
 function handle(ev) {
   if (ev.type === "handoff") {
-    repasse = ev;
+    repasse = ev; reagirFinal("👉");
   } else if (ev.type === "debate") {
     clearThinking(); addDebate(ev); showThinking();
   } else if (ev.type === "token") {
@@ -1249,6 +1316,7 @@ function handle(ev) {
     askConfirm(lastCard);
   } else if (ev.type === "result") {
     setResult(lastCard, ev.text);
+    reagirFinal(ev.text.startsWith("ok") ? "👍" : ev.text.startsWith("cancelado") ? "👌" : "😕");
     showThinking();
   }
 }
@@ -1282,19 +1350,30 @@ async function stream(path, body) {
     setDebating(false);
     clearThinking();
     if (bubble) bubble.classList.remove("typing");
+    // conversa sem ferramenta: só reage se a mensagem pede (obrigado, risada, oi); senão tira o 👀
+    if (!reagiuFinal && !pendingCard && path === "/api/chat") reagirFinal(emojiConversa(lastSent));
     bubble = null; setBusy(false); save(); syncTurns(); renderContatos();
     if (!pendingCard) input.focus();
   }
   if (repasse) {
     const ev = repasse, de = contato, texto = lastSent;
     repasse = null;
-    postarRepasse(de, ev, texto);
     await abrirContato(ev.para);
-    send(texto, nomeDe(de));
+    send(texto, { de, tool: ev.tool });
   }
 }
 
-function send(text, encaminhadoDe) {
+// mensagem que um agente mandou para outro (repasse): aparece do lado de quem pede, com a foto dele
+function deAgente(msg, de) {
+  const row = msg.closest(".row");
+  row.classList.add("from-agent"); row.dataset.de = nomeDe(de);
+  const nome = document.createElement("small"); nome.className = "de"; nome.textContent = nomeDe(de);
+  msg.prepend(nome);
+  row.appendChild(avatar(de, "avatar sm"));
+}
+
+// `repasse` = {de, tool}: quem mandou é um agente, não você ("Olá, nome! ...")
+function send(text, repasse) {
   text = text.trim();
   if (!text || busy || contato === "conselho") return;
   log.querySelector(".ag-empty")?.remove();
@@ -1302,10 +1381,17 @@ function send(text, encaminhadoDe) {
     pendingCard.querySelector(".actions")?.remove();
     setResult(pendingCard, "cancelado: mensagem nova"); pendingCard = null;
   }
-  lastSent = text;
-  const um = addMsg("user", text);
-  if (encaminhadoDe) um.title = "encaminhado por " + encaminhadoDe;
-  if (encaminhadoDe) um.insertAdjacentHTML("afterbegin", `<small style="display:block;opacity:.7;font-size:11.5px">↪ encaminhado por ${encaminhadoDe.replace(/[<&]/g, "")}</small>`);
+  lastSent = text; remetente = repasse?.de || null;
+  let visto = text;
+  if (repasse) {
+    const acao = LABELS[repasse.tool]?.[1] || repasse.tool;
+    visto = `Olá, ${nomeDe(contato)}! Me pediram “${text}”, mas ${acao[0].toLowerCase() + acao.slice(1)} é com você.`;
+  }
+  ultimoVisto = visto;
+  const um = addMsg("user", visto);
+  if (repasse) deAgente(um, repasse.de);
+  alvoReacao = um; reagiuFinal = false;
+  setTimeout(() => { if (alvoReacao === um && !reagiuFinal) reagir(um, contato, "👀"); }, 450);  // "vi"
   input.value = ""; input.style.height = ""; sendBtn.disabled = true;
   stream("/api/chat", { text });
 }
