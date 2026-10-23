@@ -1,0 +1,8 @@
+{
+  "name": "lia-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "paridade": "node test/paridade.js"
+  }
+}

@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Lia</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#121214">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23111'/%3E%3Cg fill='%23fff'%3E%3Crect x='18' y='14' width='10' height='36'/%3E%3Crect x='18' y='40' width='28' height='10'/%3E%3Crect x='36' y='24' width='10' height='10'/%3E%3C/g%3E%3C/svg%3E">
 <style>
   /* =====================================================================
@@ -212,6 +214,33 @@
   .tool.ok .st { color: var(--ok); }
   .tool.err .st, .tool.err .out { color: var(--err); }
   .tool.off .out, .tool.off .st { color: var(--muted); }
+  .tool .undo { border: 0; background: none; padding: 1px 6px; margin-left: 2px; font-size: 12.5px; font-weight: 600; color: var(--muted);
+                border-radius: 7px; text-decoration: underline; text-underline-offset: 3px; transition: color .15s, background .15s; }
+  .tool .undo:hover { color: var(--ink); background: var(--chip); }
+  .tool.undone { opacity: .62; }
+  .tool.undone .arg, .tool.undone .out { text-decoration: line-through; }
+  .tool .undone-msg { font-size: 12.5px; color: var(--muted); }
+  .tool .openlink { color: var(--muted); font-size: 12.5px; white-space: nowrap; text-underline-offset: 2px; }
+  .tool .openlink:hover { color: var(--ink); }
+  .rich { flex-basis: 100%; margin: 6px 0 2px; color: var(--ink); animation: pop-in .35s var(--ease) both; }
+  .wx { display: flex; align-items: center; gap: 14px; }
+  .wx > svg { width: 40px; height: 40px; stroke-width: 1.6; flex: none; }
+  .wx .temp { font-size: 30px; font-weight: 650; line-height: 1; letter-spacing: -1px; }
+  .wx .info { font-size: 13px; color: var(--muted); line-height: 1.45; }
+  .wx .info b { color: var(--ink); font-weight: 600; }
+  .calc-big { font-size: 26px; font-weight: 650; letter-spacing: -.5px; font-variant-numeric: tabular-nums; word-break: break-all; }
+  .calc-big::before { content: "= "; color: var(--muted); font-weight: 400; }
+  .notes-list { margin: 0; padding-left: 18px; font-size: 13.5px; }
+  .notes-list li { margin: 2px 0; animation: rise .3s var(--ease) both; }
+  .countdown { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-variant-numeric: tabular-nums;
+               padding: 3px 10px; border-radius: 999px; background: var(--chip); color: var(--ink); }
+  .countdown svg { width: 14px; height: 14px; }
+  .countdown.done { color: var(--muted); }
+  /* tentar de novo: só na última resposta de uma conversa */
+  .acts [data-a=retry] { display: none; }
+  .row.last-reply > .acts [data-a=retry] { display: grid; }
+  .acts [data-a=retry]:hover svg { transform: rotate(-140deg); transition: transform .45s var(--spring); }
+  .row.retrying { opacity: .4; filter: blur(1.5px); transition: opacity .3s, filter .3s; }
   .spin { width: 13px; height: 13px; border: 2px solid var(--line); border-top-color: var(--ink); border-radius: 50%; animation: rot .8s linear infinite; }
   @keyframes rot { to { transform: rotate(360deg); } }
   /* cartão de aprovação (como no Grok Bot: Permitir uma vez / Sempre permitir / Negar) */
@@ -417,6 +446,19 @@
   #settings h4 { margin: 18px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
   #settings label { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 0; }
   #settings label small { color: var(--muted); display: block; font-size: 12.5px; }
+  .mem { list-style: none; margin: 4px 0 6px; padding: 0; display: grid; gap: 4px; }
+  .mem li { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 10px; border-radius: 9px; background: var(--panel-2); font-size: 13.5px; }
+  .mem li span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .mem li small { color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
+  .mem li button { border: 0; background: none; color: var(--muted); width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; flex: none; }
+  .mem li button:hover { background: var(--line); color: var(--err); }
+  .mem li button svg { width: 14px; height: 14px; }
+  .mem-empty { color: var(--muted); font-size: 13px; padding: 4px 0 8px; }
+  .mem-acts { display: flex; justify-content: flex-end; }
+  .mini { border: 1px solid var(--line); background: none; color: var(--ink); border-radius: 8px; padding: 4px 10px; font-size: 12.5px; }
+  .mini:hover { background: var(--chip); }
+  .mini.danger { color: var(--err); }
+  #sobre { color: var(--muted); font-size: 12.5px; line-height: 1.5; margin: 4px 0; }
   .switch { appearance: none; width: 38px; height: 22px; border-radius: 999px; background: var(--line); position: relative; cursor: pointer; flex: none;
             transition: background .2s; margin: 0; }
   .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff;
@@ -524,9 +566,21 @@
   <label><span>Notificação do Windows<small>lembretes e rotinas aparecem mesmo com a janela minimizada</small></span><input type="checkbox" class="switch" id="notif"></label>
   <h4>Aparência</h4>
   <div class="seg" id="theme"><button data-v="auto">Automático</button><button data-v="light">Claro</button><button data-v="dark">Escuro</button></div>
+  <h4>Sempre permitido para a Lia</h4>
+  <ul class="mem" id="permlist"></ul>
+  <h4>Lembretes ativos</h4>
+  <ul class="mem" id="remlist"></ul>
+  <h4>O que a Lia sabe de você</h4>
+  <ul class="mem" id="factlist"></ul>
+  <div class="mem-acts"><button class="mini danger" id="factclear">Esquecer tudo</button></div>
+  <h4>Suas notas</h4>
+  <ul class="mem" id="notelist"></ul>
+  <div class="mem-acts"><button class="mini danger" id="noteclear">Apagar todas</button></div>
   <h4 id="ferr-h">Ferramentas</h4>
   <ul id="toollist"></ul>
   <h4>Dados</h4>
+  <h4>Modelo</h4>
+  <p id="sobre"></p>
   <label><span>Apagar todas as conversas<small>some o histórico salvo neste computador; os colegas continuam</small></span><button class="icon-btn" id="clearall" aria-label="Apagar conversas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M5 7l1 13h12l1-13M9 7V4h6v3"/></svg></button></label>
 </aside>
 
@@ -619,6 +673,11 @@ const ICONS = {
   chevron: '<path d="m9 6 6 6-6 6"/>',
   slash: '<path d="M15 4 9 20"/>',
   at: '<circle cx="12" cy="12" r="4"/><path d="M16 12v1.5a2.5 2.5 0 0 0 5 0V12a9 9 0 1 0-3.5 7.1"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  rain: '<path d="M7 15h10a4 4 0 0 0 .5-8A6 6 0 0 0 6 6.5 4.3 4.3 0 0 0 7 15z"/><path d="m8 18-1 3M12 18l-1 3M16 18l-1 3"/>',
+  storm: '<path d="M7 15h10a4 4 0 0 0 .5-8A6 6 0 0 0 6 6.5 4.3 4.3 0 0 0 7 15z"/><path d="m12.5 15-2 3.5h3L11.5 22"/>',
+  retry: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
+  book: '<path d="M4 5a2 2 0 0 1 2-2h13v15H6a2 2 0 0 0-2 2z"/><path d="M4 20a2 2 0 0 0 2 2h13v-4"/>',
 };
 const ICON = (n) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n] || ICONS.gear}</svg>`;
 const LABELS = {
@@ -627,7 +686,7 @@ const LABELS = {
   calcular: ["calc", "Calcular"], lembrete: ["alarm", "Criar lembrete"], anotar: ["pencil", "Anotar"],
   ver_notas: ["notes", "Ler notas"], lembrar: ["save", "Guardar na memória"], recordar: ["recall", "Consultar memória"],
   volume: ["volume", "Volume"], midia: ["media", "Mídia"], abrir_pasta: ["folder", "Abrir pasta"], clima: ["cloud", "Clima"],
-  bloquear: ["lock", "Bloquear tela"],
+  bloquear: ["lock", "Bloquear tela"], consultar: ["book", "Consultar a Wikipédia"],
 };
 // um exemplo de pedido por ferramenta (para as sugestões na conversa vazia)
 const EXEMPLOS = {
@@ -635,7 +694,7 @@ const EXEMPLOS = {
   hora: "que horas são?", data: "que dia é hoje?", calcular: "quanto é 15% de 200?", lembrete: "me lembra de beber água em 20 minutos",
   anotar: "anota aí: comprar leite", ver_notas: "lê minhas notas", lembrar: "meu nome é Ana", recordar: "qual é meu nome?",
   volume: "aumenta o volume", midia: "pausa a música", abrir_pasta: "abre a pasta de downloads", clima: "como tá o tempo em Recife?",
-  bloquear: "bloqueia o pc",
+  bloquear: "bloqueia o pc", consultar: "o que é fotossíntese?",
 };
 // colegas sugeridos (como o "Meet a future teammate" do Grok Bot): só preenchem o perfil
 const SUGESTOES = [
@@ -753,6 +812,7 @@ function snapshot(el) {
   const c = el.cloneNode(true);
   c.querySelectorAll(".row.thinking, .vazio").forEach((e) => e.remove());
   c.querySelectorAll(".typing").forEach((e) => e.classList.remove("typing"));
+  c.querySelectorAll(".retrying").forEach((e) => e.classList.remove("retrying"));
   c.querySelectorAll(".msg").forEach((m) => { if (m.querySelector(".tk")) m.textContent = m.textContent; });
   c.querySelectorAll(".tool.wait .st").forEach((e) => { e.textContent = ""; });
   // aprovação sem resposta não sobrevive a recarregar a página (o servidor esquece): fica "Expirou"
@@ -856,7 +916,8 @@ function acoes(r, bot) {
   const a = document.createElement("div"); a.className = "acts";
   a.innerHTML = `<button data-a="reagir" title="Reagir" aria-label="Reagir">${ICON("smile")}</button>` +
                 `<button data-a="responder" title="Responder" aria-label="Responder">${ICON("reply")}</button>` +
-                (bot ? `<button data-a="erro" title="Errou? Guarda para o próximo treino" aria-label="Marcar erro">${ICON("flag")}</button>` : "");
+                (bot ? `<button data-a="erro" title="Errou? Guarda para o próximo treino" aria-label="Marcar erro">${ICON("flag")}</button>` +
+                       `<button data-a="retry" title="Tentar de novo (outra resposta)" aria-label="Tentar de novo">${ICON("retry")}</button>` : "");
   r.appendChild(a);
 }
 const SPIN = '<i class="spin"></i>';
@@ -870,13 +931,89 @@ function addTool(el, ev, autor) {
   if (el === log) scroll();
   return card;
 }
-function setResult(card, text) {
+function setResult(card, text, ev) {
   if (!card) return;
   const ok = text.startsWith("ok"), off = text.startsWith("cancelado");
   card.classList.remove("wait");
   card.classList.add(ok ? "ok" : off ? "off" : "err");
-  card.querySelector(".out").textContent = text.replace(/^(ok|erro|cancelado):\s*/, "").replace("você não autorizou", "negado");
+  // Wikipédia: o cartão mostra só o título do artigo (o resumo já vem na resposta)
+  card.querySelector(".out").textContent = (ok && ev?.titulo) || text.replace(/^(ok|erro|cancelado):\s*/, "").replace("você não autorizou", "negado");
   card.querySelector(".st").innerHTML = ICON(ok ? "check" : "x");
+  if (ok) richify(card, ev?.tool, text.replace(/^ok:\s*/, ""), ev);
+  if (ok && ev?.link) {
+    const a = document.createElement("a");
+    a.className = "openlink"; a.href = ev.link; a.target = "_blank"; a.rel = "noopener noreferrer"; a.textContent = ev.titulo ? "ler o artigo ↗" : "abrir ↗";
+    card.querySelector(".out").after(a);
+  }
+  if (ev?.undo) addUndo(card, ev.undo);
+}
+// ---------- cartões ricos (clima, conta, notas, contagem do lembrete) e desfazer
+function parseDur(t) {  // "1 hora e 30 minutos" -> segundos
+  let s = 0;
+  for (const [, n, u] of t.matchAll(/(\d+)\s*(hora|minuto|segundo)/g)) s += +n * (u === "hora" ? 3600 : u === "minuto" ? 60 : 1);
+  return s;
+}
+function elem(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function richify(card, tool, v, ev) {
+  const box = elem("div", "rich");
+  if (tool === "clima") {
+    const m = v.match(/^(.*?):\s*(-?\d+)°C,\s*(.*?),\s*máx\s*(-?\d+)°C,\s*mín\s*(-?\d+)°C,\s*chuva\s*(\d+)%/);
+    if (!m) return;
+    const c = m[3].toLowerCase();
+    const ic = /trovoada|tempestade/.test(c) ? "storm" : /chuva|garoa|aguaceiro/.test(c) ? "rain"
+             : /limpo|sol/.test(c) && !/nublado/.test(c) ? "sun" : "cloud";
+    const wx = elem("div", "wx"), info = elem("div", "info");
+    wx.innerHTML = ICON(ic);
+    info.append(elem("b", null, m[1]), document.createElement("br"), `${m[3]} · ↑${m[4]}° ↓${m[5]}° · chuva ${m[6]}%`);
+    wx.append(elem("div", "temp", m[2] + "°"), info);
+    box.append(wx);
+  } else if (tool === "calcular") {
+    box.append(elem("div", "calc-big", v));
+  } else if (tool === "ver_notas" && !/nenhuma nota/.test(v)) {
+    const ul = elem("ul", "notes-list");
+    v.split("; ").forEach((n, i) => { const li = elem("li", null, n); li.style.animationDelay = i * 40 + "ms"; ul.append(li); });
+    box.append(ul);
+  } else if (tool === "lembrete" && ev?.undo) {  // só lembrete de verdade (no modo simulado ele não é agendado)
+    const m = v.match(/^em (.*?):/), secs = m ? parseDur(m[1]) : 0;
+    if (!secs) return;
+    const cd = elem("span", "countdown");
+    cd.dataset.ate = Date.now() + secs * 1000;
+    cd.innerHTML = ICON("clock"); cd.append(elem("span"));
+    box.append(cd); setTimeout(tickCountdowns, 0);
+  } else return;
+  card.appendChild(box);
+}
+const fmtLeft = (s) => s >= 3600 ? `${Math.floor(s / 3600)}h${String(Math.floor(s % 3600 / 60)).padStart(2, "0")}`
+                                 : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+function tickCountdowns() {
+  document.querySelectorAll(".countdown[data-ate]").forEach((c) => {
+    const left = Math.round((+c.dataset.ate - Date.now()) / 1000), t = c.lastElementChild;
+    if (c.classList.contains("cancel")) return;
+    if (left > 0) t.textContent = "faltam " + fmtLeft(left);
+    else { t.textContent = "já tocou"; c.classList.add("done"); c.removeAttribute("data-ate"); }
+  });
+}
+setInterval(tickCountdowns, 1000);
+function addUndo(card, u) {
+  const b = elem("button", "undo", u.rotulo);
+  b.dataset.tipo = u.tipo; b.dataset.ref = u.ref;
+  b.title = u.tipo === "fato" ? "Tirar isso da memória" : u.tipo === "nota" ? "Apagar essa nota" : "Cancelar esse lembrete";
+  card.querySelector(".st").after(b);
+}
+// "tentar de novo": a última resposta some e o modelo gera outra
+let retryOld = null;
+function markLast(el) {
+  el.querySelectorAll(".row.last-reply").forEach((r) => r.classList.remove("last-reply"));
+  if (ehGrupo(el.dataset.c)) return;
+  const last = [...el.children].filter((x) => x.classList.contains("row") || x.classList.contains("sys")).pop();
+  if (last?.classList.contains("bot") && last.querySelector(":scope > .msg") && !last.classList.contains("rotina") && !last.classList.contains("retorno")
+      && !last.classList.contains("alert") && !last.classList.contains("alerta")) last.classList.add("last-reply");
+}
+function dropRetry() { if (retryOld) { retryOld.remove(); retryOld = null; } }
+function tentarDeNovo(row) {
+  if (busy || !row.classList.contains("last-reply") || log.querySelector(".aprov.pendente")) return;
+  retryOld = row; row.classList.add("retrying"); row.classList.remove("last-reply");
+  stream("/api/retry", { agente: conversa });
 }
 // cartão de aprovação: Permitir uma vez / Sempre permitir / Negar
 function addAprov(el, ev, { agente: chave, quem, grupo: gid, card }) {
@@ -886,7 +1023,7 @@ function addAprov(el, ev, { agente: chave, quem, grupo: gid, card }) {
   box.dataset.agente = chave; box.dataset.quem = quem; box.dataset.tool = ev.tool;
   if (gid) box.dataset.grupo = gid;
   box.innerHTML = `<div class="ah"><span class="ti">${ICON(icon)}</span><div><b></b><small></small></div></div>` +
-    `<div class="ab"><button class="sim">Permitir uma vez</button>${ehAgente(quem) ? "<button class='sempre'>Sempre permitir</button>" : ""}<button class="nao">Negar</button></div>`;
+    `<div class="ab"><button class="sim">Permitir uma vez</button><button class="sempre">Sempre permitir</button><button class="nao">Negar</button></div>`;
   box.querySelector("b").textContent = `${nomeDe(quem)} quer ${minus(label)}`;
   box.querySelector("small").textContent = ev.arg ? `“${ev.arg}”` : "sem argumento";
   box._card = card;
@@ -902,12 +1039,14 @@ function fecharAprov(box, sim, sempre) {
 async function responderAprov(box, sim, sempre) {
   if (busy) return;
   const quem = box.dataset.quem;
-  if (sempre) {
+  if (sempre && ehAgente(quem)) {
     try { await api("/api/agentes/permitir", { agente: quem, tool: box.dataset.tool, sim: true }); await carregarAgentes(); } catch (e) {}
   }
   fecharAprov(box, sim, sempre);
   lastCard = box._card || null;
-  await stream("/api/confirm", { approve: sim, agente: box.dataset.agente }, { grupo: box.dataset.grupo, quem });
+  // a Lia não tem perfil: o "sempre" dela vale para a ferramenta (aparece nas configurações)
+  await stream("/api/confirm", { approve: sim, agente: box.dataset.agente, sempre: !!sempre && !ehAgente(quem) }, { grupo: box.dataset.grupo, quem });
+  if (sempre && !ehAgente(quem)) loadInfo();
 }
 document.addEventListener("click", (e) => {
   const b = e.target.closest(".aprov.pendente button");
@@ -943,11 +1082,26 @@ let resposta = null;
 function limparResposta() { resposta = null; $("replybar").hidden = true; }
 $("replyx").onclick = limparResposta;
 $("threads").addEventListener("click", async (e) => {
+  const u = e.target.closest(".tool .undo");
+  if (u) {
+    u.disabled = true;
+    try {
+      const r = await (await api("/api/desfazer", { tipo: u.dataset.tipo, ref: u.dataset.ref })).json();
+      const card = u.closest(".tool");
+      card.classList.add("undone");
+      const cd = card.querySelector(".countdown");
+      if (cd) { cd.classList.add("done", "cancel"); cd.lastElementChild.textContent = "cancelado"; }
+      u.replaceWith(elem("span", "undone-msg", r.msg));
+      salvar(card.closest(".thread").dataset.c);
+    } catch (err) { u.disabled = false; snack("Não consegui desfazer agora.", null); }
+    return;
+  }
   const rx = e.target.closest(".rx.mine");
   if (rx) return minhaReacao(rx.closest(".row"), rx.dataset.e);
   const b = e.target.closest(".acts button");
   if (!b) return;
   const row = b.closest(".row"), thread = row.closest(".thread").dataset.c;
+  if (b.dataset.a === "retry") return tentarDeNovo(row);
   if (b.dataset.a === "reagir") {
     fecharPicker();
     const p = document.createElement("div"); p.className = "picker";
@@ -1536,12 +1690,12 @@ function handle(ev) {
     if (ehGrupo(streamDe)) saudacaoPendente = { de: falante, ev };  // no grupo o próprio servidor passa adiante
     else repasse = ev;
   } else if (ev.type === "token") {
-    clearThinking();
+    clearThinking(); dropRetry();
     if (!bubble) { bubble = addBot(log, "", { autor }); bubble.classList.add("typing"); }
     const sp = document.createElement("span"); sp.className = "tk"; sp.textContent = ev.text;
     bubble.appendChild(sp); scroll();
   } else if (ev.type === "text") {
-    clearThinking();
+    clearThinking(); dropRetry();
     if (!bubble) bubble = addBot(log, "", { autor });
     bubble.classList.remove("typing");
     if (bubble.textContent.trim() !== ev.text.trim()) bubble.textContent = ev.text;
@@ -1553,7 +1707,7 @@ function handle(ev) {
     }
     bubble = null; speak(ev.text);
   } else if (ev.type === "call") {
-    clearThinking();
+    clearThinking(); dropRetry();
     if (bubble) { bubble.classList.remove("typing"); bubble = null; }
     lastCard = addTool(log, ev, autor);
   } else if (ev.type === "confirm") {
@@ -1567,7 +1721,7 @@ function handle(ev) {
     salvar(quem); naoLidos.add(quem); salvarListas();
     reagirFinal("👀");
   } else if (ev.type === "result") {
-    setResult(lastCard, ev.text);
+    setResult(lastCard, ev.text, ev);
     ultimoResultado = ev.text;
     reagirFinal(ev.text.startsWith("ok") ? "👍" : ev.text.startsWith("cancelado") ? "👌" : "😕");
     showThinking(log, autor);
@@ -1603,8 +1757,9 @@ async function stream(path, body, ctx = {}) {
     await pump;
     clearThinking();
     if (bubble) bubble.classList.remove("typing");
-    if (!reagiuFinal && !el.querySelector(".aprov.pendente") && path !== "/api/confirm") reagirFinal(emojiConversa(lastSent));
-    bubble = null; setBusy(false);
+    if (!reagiuFinal && !el.querySelector(".aprov.pendente") && path === "/api/chat") reagirFinal(emojiConversa(lastSent));
+    if (retryOld) { retryOld.classList.remove("retrying"); retryOld = null; }  // não veio resposta nova: fica a antiga
+    bubble = null; setBusy(false); markLast(el);
     salvar(streamDe); syncTurns(streamDe);
     // aprovação que veio de um grupo: quem fez avisa lá também
     if (ctx.grupo && ultimoResultado) {
@@ -1784,9 +1939,55 @@ if (store.get("lia-lateral") === "0") document.body.classList.add("side-closed")
 if (store.get("lia-info") === "0") document.body.classList.add("info-closed");
 function openSettings(open, ancora) {
   $("settings").classList.toggle("open", open); $("shade").classList.toggle("open", open);
+  if (open) { loadMemory(); loadReminders(); }
   if (open && ancora) setTimeout(() => $(ancora).scrollIntoView({ block: "start", behavior: "smooth" }), 200);
 }
 $("btn-perfil").onclick = () => openSettings(true);
+function fillList(id, items, empty, onDel, extra) {
+  const ul = $(id); ul.innerHTML = "";
+  if (!items.length) { ul.innerHTML = `<div class="mem-empty">${empty}</div>`; return; }
+  items.forEach((txt, i) => {
+    const li = document.createElement("li");
+    li.innerHTML = `<span></span>${extra ? "<small></small>" : ""}<button aria-label="Apagar" title="Apagar">${ICON("x")}</button>`;
+    li.firstChild.textContent = txt;
+    if (extra) li.querySelector("small").textContent = extra(i);
+    li.querySelector("button").onclick = () => onDel(i);
+    ul.appendChild(li);
+  });
+}
+function showMemory(m) {
+  fillList("factlist", m.fatos, "Nada guardado ainda. Conta algo, tipo “eu faço judô”.",
+           async (i) => showMemory(await (await api("/api/memoria", { tipo: "fatos", apagar: i })).json()));
+  fillList("notelist", m.notas, "Nenhuma nota. Tenta “anota aí: comprar pão”.",
+           async (i) => showMemory(await (await api("/api/memoria", { tipo: "notas", apagar: i })).json()));
+}
+async function loadMemory() { try { showMemory(await (await api("/api/memoria")).json()); } catch (e) {} }
+$("factclear").onclick = async () => {
+  if (await ask("Esquecer tudo sobre você?", "A Lia apaga todos os fatos guardados. Não dá para desfazer.", "Esquecer"))
+    showMemory(await (await api("/api/memoria", { tipo: "fatos", apagar: null })).json());
+};
+$("noteclear").onclick = async () => {
+  if (await ask("Apagar todas as notas?", "Todas as suas notas vão sumir. Não dá para desfazer.", "Apagar"))
+    showMemory(await (await api("/api/memoria", { tipo: "notas", apagar: null })).json());
+};
+let reminders = [];
+function showReminders() {
+  fillList("remlist", reminders.map((r) => r.texto === "o timer acabou" ? "Timer" : r.texto), "Nenhum lembrete agendado.",
+           async (i) => { reminders = await (await api("/api/lembretes", { cancelar: reminders[i].id })).json(); showReminders(); },
+           (i) => fmtLeft(reminders[i].faltam));
+}
+async function loadReminders() { try { reminders = await (await api("/api/lembretes")).json(); showReminders(); } catch (e) {} }
+setInterval(() => {  // contagem regressiva enquanto as configurações estão abertas
+  if (!$("settings").classList.contains("open") || !reminders.length) return;
+  reminders.forEach((r) => r.faltam = Math.max(0, r.faltam - 1));
+  $("remlist").querySelectorAll("li small").forEach((el, i) => { if (reminders[i]) el.textContent = fmtLeft(reminders[i].faltam); });
+  if (reminders.some((r) => r.faltam === 0)) loadReminders();
+}, 1000);
+let permitidas = [];
+function showPerms() {
+  fillList("permlist", permitidas.map((t) => LABELS[t]?.[1] || t), "Nada. “Sempre permitir” num pedido da Lia aparece aqui.",
+           async (i) => { permitidas = (await (await api("/api/settings", { permitidas: permitidas.filter((_, j) => j !== i) })).json()).permitidas; showPerms(); });
+}
 $("btn-ferr").onclick = () => openSettings(true, "ferr-h");
 $("close").onclick = $("shade").onclick = () => openSettings(false);
 $("auto").onchange = () => api("/api/settings", { auto: $("auto").checked });
@@ -1881,6 +2082,9 @@ async function loadInfo() {
     const info = await (await api("/api/info")).json();
     setOnline(true, `${(info.params / 1e6).toFixed(1)}M parâmetros · ${info.apps} apps` + (info.simulado ? " · modo simulado" : ""));
     $("auto").checked = info.auto; $("conselho").checked = info.conselho;
+    permitidas = info.permitidas || []; showPerms();
+    $("sobre").textContent = `${info.modelo || "?"} · ${(info.params / 1e6).toFixed(1)}M parâmetros · passo ${info.iter}` +
+      (info.val_loss != null ? ` · val loss ${(+info.val_loss).toFixed(3)}` : "") + (info.copia ? " · cópia forçada" : "") + (info.simulado ? " · modo simulado" : "");
     ferramentasInfo = info.tools;
     $("temp").value = info.temperature; $("tempval").textContent = info.temperature;
     $("toollist").innerHTML = "";
@@ -1919,6 +2123,7 @@ setInterval(async () => {
   atualizarBotoes();
   await loadInfo();
   await carregarAgentes();
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
   const ultimo = store.get("lia-conversa");
   abrirConversa(ultimo && (ultimo === "lia" || ehAgente(ultimo) || ehGrupo(ultimo)) ? ultimo : "lia");
 })();

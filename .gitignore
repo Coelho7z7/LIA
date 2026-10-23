@@ -22,3 +22,20 @@ data_v*/
 
 # Configuração local do Claude Code
 .claude/
+
+# Memória usada pelo modo simulado (testes)
+memoria_simulada/
+webapp/modelo/
+webapp/test/referencia.json
+webapp/dist/
+webapp/test/ferramentas.json
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
+.wrangler/
+testes/resultados/
+data_wiki/

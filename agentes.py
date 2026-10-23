@@ -40,7 +40,7 @@ O_QUE = {"abrir_app": "abrir apps", "abrir_site": "abrir sites", "pesquisar": "p
          "lembrete": "criar lembretes", "anotar": "anotar coisas", "ver_notas": "ler suas notas",
          "lembrar": "guardar o que você me conta", "recordar": "lembrar o que você contou",
          "volume": "mexer no volume", "midia": "controlar a música", "abrir_pasta": "abrir pastas",
-         "clima": "ver o clima", "bloquear": "bloquear a tela"}
+         "clima": "ver o clima", "bloquear": "bloquear a tela", "consultar": "consultar a Wikipédia"}
 # Palavras que, numa pergunta "quem faz...?", apontam para a ferramenta
 ASSUNTO = {"abrir_app": ["app", "apps", "aplicativo", "aplicativos", "programa", "programas"],
            "abrir_site": ["site", "sites"], "pesquisar": ["pesquisa", "pesquisar", "google", "busca", "buscar"],
@@ -50,7 +50,7 @@ ASSUNTO = {"abrir_app": ["app", "apps", "aplicativo", "aplicativos", "programa",
            "ver_notas": ["nota", "notas"], "lembrar": ["memoria", "guarda", "guardar"], "recordar": ["memoria"],
            "volume": ["volume", "som"], "midia": ["musica", "musicas", "midia", "spotify"],
            "abrir_pasta": ["pasta", "pastas"], "clima": ["clima", "tempo", "chuva", "previsao"],
-           "bloquear": ["bloquear", "bloqueia", "tela"]}
+           "bloquear": ["bloquear", "bloqueia", "tela"], "consultar": ["wikipedia", "wiki", "artigo", "resumo"]}
 
 
 def _normalizar(a):

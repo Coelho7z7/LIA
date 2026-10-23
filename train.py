@@ -61,6 +61,8 @@ def main():
     ap.add_argument("--seed", type=int, default=1337)
     ap.add_argument("--save-last", action="store_true",
                     help="grava o checkpoint do fim mesmo se o val não melhorou (ex.: dados com BPE-dropout)")
+    ap.add_argument("--ema", type=float, default=0,
+                    help="média móvel dos pesos (ex.: 0.999): avalia e grava a média, que generaliza melhor")
     args = ap.parse_args()
 
     sys.stdout.reconfigure(encoding="utf-8")
@@ -109,6 +111,14 @@ def main():
     model = GPT(cfg).to(device)
     if ckpt is not None:
         model.load_state_dict(ckpt["model"])
+    # EMA: cópia dos pesos que anda devagar atrás do treino (média dos últimos ~1/(1-ema) passos).
+    # O checkpoint guarda a média em "model" (o que o agente usa) e os pesos crus em "raw_params".
+    params = list(model.parameters())
+    ema = [p.detach().clone() for p in params] if args.ema else None
+    if ema is not None and args.resume and "raw_params" in ckpt:
+        with torch.no_grad():
+            for p, r in zip(params, ckpt["raw_params"]):
+                p.copy_(r)
     lr = args.lr or (3e-4 if (init_path and args.stage == "sft") else 1e-3)
     min_lr = lr * args.min_lr_frac
 
@@ -185,10 +195,20 @@ def main():
         ratio = min(1.0, ratio)
         return min_lr + 0.5 * (1 + math.cos(math.pi * ratio)) * (lr - min_lr)
 
+    @torch.no_grad()
+    def swap_ema():
+        """Troca pesos crus <-> média (chamar de novo desfaz)."""
+        for p, e in zip(params, ema):
+            tmp = p.detach().clone()
+            p.copy_(e)
+            e.copy_(tmp)
+
     def save(it):
+        # com EMA, é chamado com a média no modelo (e os pesos crus guardados em `ema`)
+        extra = {"raw_params": [e.detach().clone() for e in ema], "ema": args.ema} if ema is not None else {}
         torch.save({"model": model.state_dict(), "optimizer": opt.state_dict(), "config": asdict(cfg),
                     "tokenizer": tok.to_dict(), "stage": args.stage, "iter": it, "best_val": best_val,
-                    "args": vars(args)}, ckpt_path)
+                    "args": vars(args), **extra}, ckpt_path)
 
     log_path = out / f"log_{args.stage}.csv"
     if not args.resume or not log_path.exists():
@@ -204,7 +224,12 @@ def main():
             if it % args.eval_interval == 0 or last:
                 losses = estimate_loss()
                 minutes = (time.time() - t_start) / 60
-                print(f"\n[iter {it}] train {losses['train']:.4f} | val {losses['val']:.4f} | {minutes:.1f} min")
+                raw_info = ""
+                if ema is not None:  # daqui até o fim do bloco o modelo fica com a média
+                    raw_info = f" | cru: val {losses['val']:.4f}"
+                    swap_ema()
+                    losses = estimate_loss()
+                print(f"\n[iter {it}] train {losses['train']:.4f} | val {losses['val']:.4f}{raw_info} | {minutes:.1f} min")
                 with open(log_path, "a") as f:
                     f.write(f"{it},{losses['train']:.4f},{losses['val']:.4f},{minutes:.2f}\n")
                 if losses["val"] < best_val:
@@ -219,6 +244,8 @@ def main():
                 t_last, steps_since = time.time(), 0
                 if last:
                     break
+                if ema is not None:
+                    swap_ema()  # volta aos pesos crus para seguir treinando
 
             for g in opt.param_groups:
                 g["lr"] = lr_at(it)
@@ -230,6 +257,11 @@ def main():
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)  # evita passos gigantes
             opt.step()
             opt.zero_grad(set_to_none=True)
+            if ema is not None:
+                with torch.no_grad():
+                    d = min(args.ema, (1 + it) / (10 + it))  # começo: média curta, senão fica presa no início
+                    torch._foreach_mul_(ema, d)
+                    torch._foreach_add_(ema, [p.detach() for p in params], alpha=1 - d)
 
             steps_since += 1
             if it % args.log_interval == 0:

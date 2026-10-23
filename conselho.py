@@ -36,10 +36,12 @@ import torch
 import torch.nn.functional as F
 
 import tools
+from copia import Copia
 from model import KVCache, apply_repetition_penalty, sample_next
 
 # Ferramentas cujo argumento é sempre um pedaço do pedido (nos dados de treino, 100%).
-COPIA = {"abrir_app", "abrir_site", "abrir_pasta", "pesquisar", "youtube", "anotar", "lembrete", "calcular", "clima"}
+COPIA = {"abrir_app", "abrir_site", "abrir_pasta", "pesquisar", "youtube", "anotar", "lembrete", "calcular", "clima",
+         "consultar"}
 
 # Ferramentas que não copiam o argumento: o pedido precisa falar do assunto. Aceita erro
 # de digitação ("blouqeia"), porque as conversas de treino vêm com eles.
@@ -99,7 +101,8 @@ ACOES = {"abrir_app": "abrir o app", "abrir_site": "abrir o site", "pesquisar": 
          "youtube": "buscar no YouTube", "hora": "ver a hora", "data": "ver a data", "calcular": "calcular",
          "lembrete": "criar um lembrete", "anotar": "anotar", "ver_notas": "ler as notas", "lembrar": "guardar na memória",
          "recordar": "consultar a memória", "volume": "mexer no volume", "midia": "controlar a música",
-         "abrir_pasta": "abrir a pasta", "clima": "ver o clima", "bloquear": "bloquear a tela"}
+         "abrir_pasta": "abrir a pasta", "clima": "ver o clima", "bloquear": "bloquear a tela",
+         "consultar": "consultar a Wikipédia"}
 
 
 def _curto(text, n=140):
@@ -166,8 +169,9 @@ def _expand(cache, batch, extra):
 
 class Conselho:
     def __init__(self, model, tok, temperature=0.7, top_k=40, top_p=0.9, repetition_penalty=1.1,
-                 max_reply_tokens=160):
+                 max_reply_tokens=160, fixas=None):
         self.model, self.tok = model, tok
+        self.fixas = fixas  # vocabulário fixo da cópia forçada (copia.py), se veio junto do modelo
         self.temperature, self.top_k, self.top_p = temperature, top_k, top_p
         self.repetition_penalty, self.max_reply_tokens = repetition_penalty, max_reply_tokens
         t = tok
@@ -179,18 +183,24 @@ class Conselho:
         logits, _ = self.model(torch.tensor([[token]], device=self.dev), cache=cache)
         return logits[0, -1]
 
-    def _call(self, cache, logits, temperature=0.0):
-        """Gera uma chamada a partir do prompt (gulosa, ou sorteada se temperature > 0)."""
+    def _call(self, cache, logits, temperature=0.0, contexto=None):
+        """Gera uma chamada a partir do prompt (gulosa, ou sorteada se temperature > 0). Gulosa e com
+        `contexto`, usa a mesma cópia forçada do agente (copia.py), quando o modelo traz fixas.json."""
         tok = self.tok
         cache = _clone(cache)
         logits = self._feed(cache, tok.call)
-        gen = []
+        copia = Copia(self.fixas, contexto) if self.fixas and contexto is not None and temperature <= 0 else None
+        gen, raw = [], b""
         for _ in range(48):
             logits[self.banned_in_text] = float("-inf")
-            t = sample_next(logits, temperature, 20, 1.0) if temperature > 0 else int(logits.argmax())
-            if t == tok.end:
+            if copia:
+                t = copia.escolhe(logits, raw, tok)
+            else:
+                t = sample_next(logits, temperature, 20, 1.0) if temperature > 0 else int(logits.argmax())
+            if t is None or t == tok.end:
                 break
             gen.append(t)
+            raw += tok.vocab[t]
             logits = self._feed(cache, t)
         return [tok.call] + gen
 
@@ -298,9 +308,9 @@ class Conselho:
 
 
     # -------------------------------------------------------------- decisão
-    def decidir(self, cache, logits, user_text):
+    def decidir(self, cache, logits, user_text, **kw):
         """Igual a rodada(), sem a narração: devolve (vencedora, propostas, veredito)."""
-        gen = self.rodada(cache, logits, user_text)
+        gen = self.rodada(cache, logits, user_text, **kw)
         while True:
             try:
                 next(gen)
@@ -308,7 +318,7 @@ class Conselho:
                 return fim.value
 
     @torch.no_grad()
-    def rodada(self, cache, logits, user_text):
+    def rodada(self, cache, logits, user_text, trava=None, forcar=None):
         """
         O debate inteiro. `cache` já contém o prompt (até <|assistant|>) e `logits` são do último
         token; nenhum dos dois é alterado. É um gerador de eventos para a interface, que saem na
@@ -318,6 +328,9 @@ class Conselho:
                     mensagem na sala; `resp` = id da mensagem respondida; `privado` = só no chat do papel
           {"type": "conselho", "ev": "reacao", "msg", "de", "emoji"}
         No fim devolve (vencedora, propostas em ordem de placar, veredito); use com `yield from`.
+
+        `trava`: como no agent.py, só vale chamar ferramenta se o modelo der p(<|call|>) >= trava.
+        `forcar`: o porteiro (porteiro.py) estava seguro: "call" ou "text" manda no caminho.
 
         As falas são frases prontas preenchidas com o que cada papel fez de verdade (a proposta, a
         crítica, o placar): o modelo é pequeno demais para escrever o debate sozinho.
@@ -361,7 +374,7 @@ class Conselho:
         # Direta: o caminho mais provável.
         yield digitando("Direta")
         if direta_call:
-            p, _ = add("call", self._call(cache, logits), "Direta")
+            p, _ = add("call", self._call(cache, logits, contexto=user_text), "Direta")
             m = msg("Direta", rng.choice(["Eu iria de {d}.", "Pra mim é {d}.", "Fácil: {d}."]).format(d=descrever(p)))
         else:
             p, _ = add("text", self._text(cache, text_logits, self.temperature), "Direta")
@@ -397,7 +410,7 @@ class Conselho:
             chance = 1 - p_call
             yield reacao(0, "Cética", "🤔")
         else:
-            p, _ = add("call", self._call(cache, logits), "Cética")
+            p, _ = add("call", self._call(cache, logits, contexto=user_text), "Cética")
             m = msg("Cética", f"E se for um pedido? Eu tentaria {descrever(p)}.", resp=direta)
             chance = p_call
         origem.setdefault(chave(p), m["id"])
@@ -436,6 +449,13 @@ class Conselho:
         checklist = []
         for p in ordem:
             self.revisar(p, user_text)
+            # a trava de confiança e o porteiro valem também aqui
+            if forcar == "text" and p.kind == "call":
+                p.ajuste, p.notas = float("-inf"), p.notas + ["o porteiro disse que é conversa"]
+            elif forcar == "call" and p.kind == "text":
+                p.ajuste, p.notas = float("-inf"), p.notas + ["o porteiro disse que é pedido"]
+            elif forcar is None and trava and p.kind == "call" and p_call < trava:
+                p.ajuste, p.notas = float("-inf"), p.notas + [f"o modelo só deu {_pct(p_call)} de chance de ser pedido"]
             alvo = origem[chave(p)]
             if p.notas:
                 yield reacao(alvo, "Revisora", "👎")
