@@ -202,7 +202,7 @@ def classifica(tipo, esp, calls, reply, anterior):
     return erros
 
 
-def rodar(ckpt, n, seed, porteiro=None):
+def rodar(ckpt, n, seed, porteiro=None, cpu=False):
     import torch
     import tools
     from agent import Assistant
@@ -210,7 +210,7 @@ def rodar(ckpt, n, seed, porteiro=None):
     res = ROOT / "testes" / "resultados"
     mem = res / "_memoria_estresse"
     tools.MEMORY_DIR = mem
-    bot = Assistant(str(ROOT / ckpt), porteiro=porteiro)
+    bot = Assistant(str(ROOT / ckpt), device="cpu" if cpu else None, porteiro=porteiro)
     nome = Path(ckpt).parent.name + ("_porteiro" if porteiro else "")
     rng = random.Random(seed)
     linhas, k = [], 0
@@ -269,7 +269,8 @@ if __name__ == "__main__":
     ap.add_argument("--n", type=int, default=3000)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--porteiro", default=None)
+    ap.add_argument("--cpu", action="store_true")
     a = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    rodar(a.ckpt, a.n, a.seed, a.porteiro)
+    rodar(a.ckpt, a.n, a.seed, a.porteiro, a.cpu)

@@ -4707,6 +4707,67 @@ for _f in (ex_recusa, ex_tom26, ex_sufixo, ex_curta26):
     setattr(Gen, _f.__name__, _sem_bateria(_f))
 
 
+# =================================================================== RODADA 27 (só treino; ajuste do 88M e próximas)
+# Na conversa real: "opa, lia! tudo bom?" -> "Tô aqui pra isso. Se cuida!" (frase de agradecimento: saudação com
+# "tudo bom?" quase não existia nos dados, ~6 em 200 mil) e "mas eu nem perguntei nada" -> "Que barra. Vai devagar
+# com você." (parece "e eu nem tive culpa", do desabafo). Faltavam: saudação com pergunta e conserto de conversa
+# (a pessoa estranha a resposta dela: "??", "do que você tá falando?", "não foi isso que eu disse").
+R27_OI = ["opa", "oi", "oii", "olá", "e aí", "eae", "fala", "salve", "bom dia", "boa tarde", "boa noite", "hey", "ei"]
+R27_COMO = ["tudo bom?", "tudo bem?", "tudo certo?", "beleza?", "como cê tá?", "como você tá?", "tudo joia?", "de boa?",
+            "como vai?", "tudo tranquilo?", "suave?", "como foi seu dia?"]
+R27_F_OI = ["{o}, {nome}! {c}", "{o} {nome}, {c}", "{o}! {c}", "{o}, {c}", "{o} {nome} {c}", "{c}"]
+R27_R_OI = ["Tudo ótimo por aqui! E com você?", "Tudo certo! E você, como tá?", "De boa! E aí, como você tá?",
+            "Tô bem, e você?", "Tudo tranquilo! Me conta, como tá o seu dia?", "Opa! Tudo bem sim. E contigo?"]
+R27_RESP_OI = [("tô bem também", ["Que bom! Bora, o que manda?", "Boa! Precisando de algo, é só falar."]),
+               ("tudo ótimo", ["Aí sim! Em que posso ajudar?", "Que bom! Tô por aqui."]),
+               ("mais ou menos", ["Ih, o que rolou? Quer contar?", "Poxa. Quer conversar sobre isso?"]),
+               ("cansado", ["Imagino! Dia puxado? Descansa um pouco.", "Poxa, cansaço pega. Quer contar como foi?"]),
+               ("tô mal", ["Poxa, o que aconteceu? Tô aqui.", "Sinto muito. Quer me contar?"])]
+R27_CONSERTO = _fora_da_bateria([
+    "mas eu nem perguntei nada", "eu não perguntei isso", "não foi isso que eu disse", "do que você tá falando?",
+    "do que vc ta falando", "??", "???", "hein?", "oxe, que isso?", "não tem nada a ver", "isso não tem nada a ver",
+    "você tá viajando", "tá viajando, lia?", "responde direito", "não entendi sua resposta", "como assim, lia?",
+    "que resposta foi essa?", "nada a ver isso", "lia, presta atenção", "eu só falei oi", "eu só cumprimentei"])
+R27_R_CONSERTO = ["Foi mal, viajei! Me conta de novo?", "Haha, me confundi. O que você quis dizer?",
+                  "Desculpa, respondi errado. Fala de novo que eu presto atenção.", "Opa, me perdi aqui! Pode repetir?",
+                  "Verdade, nada a ver o que eu disse, haha. O que você queria?"]
+R27_SOLTAS = ["Tô aqui pra isso. Se cuida!", "Que barra. Vai devagar com você.", "Show! Qualquer coisa, chama.",
+              "Boa! Aproveita.", "Isso é bem pessoal, haha. Qual você prefere?", "Faz sentido!", "Pois é. Mais alguma coisa?"]
+
+
+def ex_oi27(self):
+    rng = self.rng
+    o, c = rng.choice(R27_OI), rng.choice(R27_COMO)
+    text, _ = self.user(rng.choice(R27_F_OI).replace("{o}", o).replace("{c}", c))
+    msgs = [U(text), A(rng.choice(R27_R_OI))]
+    if rng.random() < 0.6:
+        f, rs = rng.choice(R27_RESP_OI)
+        msgs += [U(self.user(f)[0]), A(rng.choice(rs))]
+    return msgs
+
+
+def ex_conserto(self):
+    """Ela respondeu algo fora do lugar (uma frase pronta solta) e a pessoa estranha: ela pede desculpa e retoma."""
+    rng = self.rng
+    if rng.random() < 0.5:
+        o, c = rng.choice(R27_OI), rng.choice(R27_COMO)
+        antes = [U(self.user(rng.choice(R27_F_OI).replace("{o}", o).replace("{c}", c))[0])]
+    else:
+        antes = [U(self.user(rng.choice(["oi", "e aí", "tô em casa", "voltei", "nada não", "tô aqui de boa"]))[0])]
+    errada = dict(A(rng.choice(R27_SOLTAS)), aprender=False)  # a resposta fora do lugar é só contexto: nunca é aprendida
+    msgs = antes + [errada, U(self.user(rng.choice(R27_CONSERTO))[0]), A(rng.choice(R27_R_CONSERTO))]
+    if rng.random() < 0.4:
+        msgs += [U(self.user(rng.choice(["eu perguntei se tá tudo bem", "só queria saber como você tá", "deixa pra lá",
+                                         "nada não, só tava conversando", "eu falei oi"]))[0]),
+                 A(rng.choice(["Ah, entendi! Tô bem sim, e você?", "Tranquilo! Tô por aqui, bora conversar.",
+                               "Haha, beleza! Tudo certo por aqui. E com você?"]))]
+    return msgs
+
+
+for _f in (ex_oi27, ex_conserto):
+    setattr(Gen, _f.__name__, _sem_bateria(_f))
+
+
 TRAIN_KINDS = {"opiniao": 4, "lembra_disso": 1.5, "eu_sou": 2,  # só treino (rodadas 8 e 10)
                # rodada 11: conversa do dia a dia e fronteira pedido x conversa (~40% da mistura)
                "papo": 30, "desabafo": 6, "pares": 22, "nao_sei": 9, "capacidade": 4, "ia_info": 3, "dilema": 3,
@@ -4733,7 +4794,8 @@ TRAIN_KINDS = {"opiniao": 4, "lembra_disso": 1.5, "eu_sou": 2,  # só treino (ro
                # rodada 22: nota com número, nome x gíria, expressões com tempo/clima/dia, dia longo, pedidos curtos
                "nota22": 1.5, "nome22": 2, "expr22": 2, "dia_longo": 1, "curtos22": 2.5, "ela22": 0.7,
                "gatilho": 6, "par24": 3, "corrige_conta": 1, "qual_materia": 1,
-               "recusa": 1.5, "tom26": 3, "sufixo": 3, "curta26": 2}  # rodada 26 (teste de estresse)  # rodada 23: família larga de falas com palavra de ferramenta sem pedido
+               "recusa": 1.5, "tom26": 3, "sufixo": 3, "curta26": 2,
+               "oi27": 3, "conserto": 2}  # rodada 27: saudação com "tudo bom?" e conserto de conversa  # rodada 26 (teste de estresse)  # rodada 23: família larga de falas com palavra de ferramenta sem pedido
 # Rodada 10: um pouco mais de peso nos tipos que o v9 errou (só no treino; o eval não usa pesos)
 REFORCO = {"remember": 1.5, "app": 1.2, "search": 1.3, "youtube": 1.3, "remind": 1.3,
            "recall": 1.4, "volume": 1.3, "sobre_mim": 1.3, "fix_name": 1.3}  # rodada 13: o v12 perdeu "o que você lembra de mim?" e "desmuta"

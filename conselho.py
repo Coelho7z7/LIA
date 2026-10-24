@@ -30,12 +30,14 @@ próprio chat. A interface mostra a sala e o chat de cada papel.
 import difflib
 import math
 import random
+import re
 from dataclasses import dataclass, field
 
 import torch
 import torch.nn.functional as F
 
 import tools
+from revisao import MOTIVO, revisar_fala
 from copia import Copia
 from model import KVCache, apply_repetition_penalty, sample_next
 
@@ -103,6 +105,87 @@ ACOES = {"abrir_app": "abrir o app", "abrir_site": "abrir o site", "pesquisar": 
          "recordar": "consultar a memória", "volume": "mexer no volume", "midia": "controlar a música",
          "abrir_pasta": "abrir a pasta", "clima": "ver o clima", "bloquear": "bloquear a tela",
          "consultar": "consultar a Wikipédia"}
+
+
+# Reações de acordo com o papo (não sempre as mesmas): o tom e o assunto da sua fala, a dúvida real de cada papel e
+# o tipo de problema que a Revisora achou.
+_RUIM = re.compile(r"\b(cague\w*|fora|vacuo|perdi|morreu|faleceu|demiti\w*|reprov\w*|roubaram|quebr\w*|doente|triste|"
+                   r"brig\w*|terminou|trai\w*|deu ruim|deu errado|chorando|mal|sozinh\w*|esqueci|atrasad\w*)")
+_BOM = re.compile(r"\b(passei|consegui|promovid\w*|ganhei|aprovad\w*|formei|casar|campe\w*|sextou|feliz|aceitou|nasceu)")
+_ASSUNTOS = [(r"\b(toca|musica|som|play|pausa|volume|youtube|ouvir)\b", ["🎵", "🎧"]),
+             (r"\b(chuva|chover|clima|tempo|frio|calor|sol)\b", ["🌦️", "☔"]),
+             (r"\b(hora|horas|data|dia|lembra|lembrete|avisa|acorda)\b", ["⏰", "📅"]),
+             (r"(\d\s*[-+x*/]\s*\d|\b(quanto e|calcula|porcento|%)\b)", ["🧮", "🔢"]),
+             (r"\b(abre|abrir|app|programa|site|pasta)\b", ["🖥️", "📂"]),
+             (r"\b(pesquisa|procura|google|quem foi|o que e)\b", ["🔎", "📚"]),
+             (r"\b(oi|ola|bom dia|boa tarde|boa noite|eae|salve)\b", ["👋", "😄"]),
+             (r"\b(anota|nota|notas)\b", ["📝", "✏️"])]
+
+
+# Falas de cada papel: várias por situação (tom da sua fala, dúvida real da Cética), para não repetir sempre igual
+FALA_DIRETA_CALL = ["Eu iria de {d}.", "Pra mim é {d}.", "Fácil: {d}.", "Pedido claro, bora: {d}.", "Isso é com a gente: {d}.",
+                    "Nem precisa pensar muito: {d}.", "Tá pedindo, então {d}."]
+FALA_DIRETA_TEXTO = {
+    "ruim": ["Tá chateado, nada de ferramenta agora. Eu diria: “{t}”", "Momento de acolher. Minha sugestão: “{t}”",
+             "Isso pede carinho, não comando. Eu responderia: “{t}”"],
+    "bom": ["Notícia boa! Eu comemoraria assim: “{t}”", "Isso é pra celebrar. Eu diria: “{t}”", "Que alegria! Minha resposta: “{t}”"],
+    "pergunta": ["É uma pergunta pra gente, não um pedido. Eu responderia: “{t}”", "Ele quer saber da gente. Eu diria: “{t}”"],
+    "papo": ["Acho que é só papo. Eu diria: “{t}”", "Não vejo pedido aqui. Eu responderia: “{t}”", "Conversa normal. Minha sugestão: “{t}”",
+             "Só bater papo mesmo: “{t}”"]}
+FALA_EXPLORADORA = ["Sorteei outra possibilidade: {d}.", "Tentei outro caminho e saiu isso: {d}.", "Que tal variar? {d}.",
+                    "Olha essa alternativa: {d}."]
+FALA_EXPLORADORA_IGUAL = ["Tentei de novo e deu a mesma coisa. Concordo.", "Mesmo sorteando diferente, chego no mesmo lugar.",
+                          "Fechado com a Direta."]
+FALA_CETICA_TEXTO = {
+    "alta": ["Calma: pode não ser pedido. Eu só responderia: “{t}”", "Tô na dúvida de verdade. Talvez seja só: “{t}”"],
+    "media": ["E se não for pra fazer nada? Eu só responderia: “{t}”", "Será que ele só quer conversar? Tipo: “{t}”"],
+    "baixa": ["Sei que é improvável, mas e se for só papo? “{t}”", "Só pra constar a outra opção: “{t}”"]}
+FALA_CETICA_CALL = {
+    "alta": ["Pera, isso parece pedido sim. Eu tentaria {d}.", "Tô vendo um pedido escondido: {d}."],
+    "media": ["E se for um pedido? Eu tentaria {d}.", "Não descartaria uma ferramenta: {d}."],
+    "baixa": ["Duvido, mas alguém tem que testar: {d}.", "Advogada do diabo aqui: e se fosse {d}?"]}
+FALA_CETICA_TOM = ["Pera, Direta: {m}. Eu responderia: “{t}”", "Discordo do tom: {m}. Melhor assim: “{t}”",
+                   "Não dá pra mandar isso: {m}. Que tal: “{t}”"]
+FALA_CETICA_CONCORDA = ["Dessa vez não tenho o que discordar.", "Tô procurando defeito e não acho. Pode ir.", "Concordo, sem ressalvas."]
+FALA_COPISTA_IGUAL = ["“{a}” tá igualzinho no pedido.", "Conferi letra por letra: “{a}”. Certo.", "O trecho “{a}” bate com o que você escreveu."]
+FALA_REVISORA_OK = ["Conferi tudo: nenhuma proposta quebra as regras.", "Nada a corrigir por aqui.", "Tudo certo, pode seguir.",
+                    "Passei o pente fino: sem problema."]
+
+
+def _faixa(chance):
+    return "alta" if chance > 0.4 else "media" if chance > 0.05 else "baixa"
+
+
+def tom_da_fala(user_text):
+    f = tools.norm(user_text)
+    ruim, bom = bool(_RUIM.search(f)), bool(_BOM.search(f))
+    return "ruim" if ruim and not bom else "bom" if bom and not ruim else None
+
+
+def reacao_a_fala(user_text, rng):
+    """A primeira reação da rodada, à sua mensagem: tom primeiro, depois o assunto."""
+    tom = tom_da_fala(user_text)
+    if tom == "ruim":
+        return rng.choice(["😢", "🫂", "😬"])
+    if tom == "bom":
+        return rng.choice(["🎉", "🥳", "👏"])
+    f = tools.norm(user_text)
+    for padrao, emojis in _ASSUNTOS:
+        if re.search(padrao, f):
+            return rng.choice(emojis)
+    return "🤔" if user_text.strip().endswith("?") else "👀"
+
+
+def reacao_da_revisora(notas):
+    """Que tipo de problema ela achou."""
+    t = " ".join(notas)
+    if "chance" in t or "porteiro" in t:
+        return "📉"
+    if "não existe" in t or "nao existe" in t:
+        return "❌"
+    if "não fala" in t or "nao fala" in t or "não está no pedido" in t:
+        return "🙅"
+    return "⚠️"
 
 
 def _curto(text, n=140):
@@ -375,13 +458,14 @@ class Conselho:
         yield digitando("Direta")
         if direta_call:
             p, _ = add("call", self._call(cache, logits, contexto=user_text), "Direta")
-            m = msg("Direta", rng.choice(["Eu iria de {d}.", "Pra mim é {d}.", "Fácil: {d}."]).format(d=descrever(p)))
+            m = msg("Direta", rng.choice(FALA_DIRETA_CALL).format(d=descrever(p)))
         else:
             p, _ = add("text", self._text(cache, text_logits, self.temperature), "Direta")
-            m = msg("Direta", rng.choice(["Acho que é só papo. Eu diria: “{t}”", "Não vejo pedido aqui. Eu responderia: “{t}”"])
-                    .format(t=_curto(p.text)))
+            tom = tom_da_fala(user_text) or ("pergunta" if user_text.strip().endswith("?") else "papo")
+            m = msg("Direta", rng.choice(FALA_DIRETA_TEXTO[tom]).format(t=_curto(p.text)))
         origem[chave(p)] = direta = m["id"]
-        yield reacao(0, "Direta", "👀")  # a mensagem 0 é a sua, que abre a rodada
+        prop_direta = p
+        yield reacao(0, "Direta", reacao_a_fala(user_text, rng))  # a mensagem 0 é a sua, que abre a rodada
         yield m
         yield msg("Direta", f"Chance de usar ferramenta, segundo o modelo: {_pct(p_call)}. "
                             "Fui sempre no token mais provável.", privado=True)
@@ -392,31 +476,47 @@ class Conselho:
         ids = self._call(cache, logits, temperature=temp) if direta_call else self._text(cache, text_logits, temp)
         p, nova = add("call" if direta_call else "text", ids, "Exploradora")
         if nova:
-            m = msg("Exploradora", f"Sorteei outra possibilidade: {descrever(p)}.", resp=direta)
+            m = msg("Exploradora", rng.choice(FALA_EXPLORADORA).format(d=descrever(p)), resp=direta)
             origem[chave(p)] = m["id"]
             yield m
         else:
-            yield reacao(direta, "Exploradora", "👍")
-            yield msg("Exploradora", "Sorteei de novo e caiu no mesmo lugar. Tô com a Direta.", resp=direta)
+            yield reacao(direta, "Exploradora", "💯" if direta_call else "🤝")  # concorda: só reage
+            if rng.random() < 0.25:
+                yield msg("Exploradora", rng.choice(FALA_EXPLORADORA_IGUAL), resp=direta)
         yield msg("Exploradora", f"Sorteio com temperatura {f'{temp:.1f}'.replace('.', ',')}: às vezes o segundo "
                                  "caminho é o certo.",
                   privado=True)
 
-        # Cética: o caminho contrário.
+        # Cética: só discorda quando tem motivo. Se a Direta errou o tom, ela aponta e propõe outra resposta; se há
+        # dúvida real entre conversar e usar ferramenta (>= 5% pro outro lado), defende o outro caminho; senão concorda.
         yield digitando("Cética")
-        if direta_call:
-            p, _ = add("text", self._text(cache, text_logits, self.temperature), "Cética")
-            m = msg("Cética", f"E se não for pra fazer nada? Eu só responderia: “{_curto(p.text)}”", resp=direta)
-            chance = 1 - p_call
-            yield reacao(0, "Cética", "🤔")
+        chance = (1 - p_call) if direta_call else p_call
+        problema = None if direta_call else revisar_fala(user_text, prop_direta.text)
+        if problema:
+            for _ in range(3):
+                ids = self._text(cache, text_logits, max(self.temperature, 0.9))
+                if not revisar_fala(user_text, tok.decode(ids).strip()):
+                    break
+            p, _ = add("text", ids, "Cética")
+            yield reacao(direta, "Cética", "🙅")
+            m = msg("Cética", rng.choice(FALA_CETICA_TOM).format(m=MOTIVO[problema], t=_curto(p.text)), resp=direta)
+            origem.setdefault(chave(p), m["id"])
+            yield m
+        elif chance >= 0.05:
+            if direta_call:
+                p, _ = add("text", self._text(cache, text_logits, self.temperature), "Cética")
+                m = msg("Cética", rng.choice(FALA_CETICA_TEXTO[_faixa(chance)]).format(t=_curto(p.text)), resp=direta)
+            else:
+                p, _ = add("call", self._call(cache, logits, contexto=user_text), "Cética")
+                m = msg("Cética", rng.choice(FALA_CETICA_CALL[_faixa(chance)]).format(d=descrever(p)), resp=direta)
+            yield reacao(0, "Cética", "🧐" if chance > 0.4 else "🤔")
+            origem.setdefault(chave(p), m["id"])
+            yield m
         else:
-            p, _ = add("call", self._call(cache, logits, contexto=user_text), "Cética")
-            m = msg("Cética", f"E se for um pedido? Eu tentaria {descrever(p)}.", resp=direta)
-            chance = p_call
-        origem.setdefault(chave(p), m["id"])
-        yield m
-        yield msg("Cética", f"O modelo dá {_pct(chance)} de chance pro caminho que eu defendo. "
-                            "Mesmo assim, alguém tem que levantar a dúvida.", privado=True)
+            yield reacao(direta, "Cética", "👌")
+            if rng.random() < 0.3:
+                yield msg("Cética", rng.choice(FALA_CETICA_CONCORDA), resp=direta)
+        yield msg("Cética", f"O modelo dá {_pct(chance)} de chance pro outro caminho.", privado=True)
 
         # Copista: refaz cada ferramenta proposta que copia o argumento do pedido.
         feitas = set()
@@ -437,9 +537,10 @@ class Conselho:
                 origem[chave(p)] = m["id"]
                 yield m
             else:
-                yield reacao(origem[chave(p)], "Copista", "👍")
-                yield msg("Copista", f"Conferi trecho por trecho: “{tools.parse_call(p.text)[1]}” está igualzinho no "
-                                     "pedido.", resp=origem[chave(p)])
+                yield reacao(origem[chave(p)], "Copista", "🎯")  # o argumento já estava certo: só reage
+                if rng.random() < 0.3:
+                    yield msg("Copista", rng.choice(FALA_COPISTA_IGUAL).format(a=tools.parse_call(p.text)[1]),
+                              resp=origem[chave(p)])
             yield msg("Copista", f"Testei {len(ranking)} trechos do pedido como argumento de {parsed[0]}. "
                                  f"Os favoritos do modelo (log da chance):\n{top}", privado=True)
 
@@ -449,6 +550,9 @@ class Conselho:
         checklist = []
         for p in ordem:
             self.revisar(p, user_text)
+            tom = revisar_fala(user_text, p.text) if p.kind == "text" else None
+            if tom:  # resposta no tom errado (revisao.py) não pode ganhar
+                p.ajuste, p.notas = float("-inf"), p.notas + [MOTIVO[tom]]
             # a trava de confiança e o porteiro valem também aqui
             if forcar == "text" and p.kind == "call":
                 p.ajuste, p.notas = float("-inf"), p.notas + ["o porteiro disse que é conversa"]
@@ -458,13 +562,13 @@ class Conselho:
                 p.ajuste, p.notas = float("-inf"), p.notas + [f"o modelo só deu {_pct(p_call)} de chance de ser pedido"]
             alvo = origem[chave(p)]
             if p.notas:
-                yield reacao(alvo, "Revisora", "👎")
+                yield reacao(alvo, "Revisora", reacao_da_revisora(p.notas))
                 yield msg("Revisora", "; ".join(p.notas)[:1].upper() + "; ".join(p.notas)[1:] + ".", resp=alvo)
             else:
                 yield reacao(alvo, "Revisora", "✅")
             checklist.append(f"• {descrever(p)}: {'; '.join(p.notas) if p.notas else 'ok'}")
         if not any(p.notas for p in ordem):
-            yield msg("Revisora", "Conferi todas as propostas: nenhuma quebra as regras.")
+            yield msg("Revisora", rng.choice(FALA_REVISORA_OK))
         yield msg("Revisora", "O que eu conferi:\n" + "\n".join(checklist), privado=True)
 
         # Lia: junta tudo e decide.
@@ -487,10 +591,13 @@ class Conselho:
         yield msg("Lia", "Placar (caminho + revisora + votos + fluência, em log de chance):\n" + placar, privado=True)
         m = msg("Lia", veredito, resp=origem[chave(win)])  # a Lia não reage: decide respondendo à escolhida
         yield m
+        tom = tom_da_fala(user_text)
+        festa = "🫂" if tom == "ruim" else "🥳" if tom == "bom" else "🙌" if win.kind == "call" else "😊"
         for papel in win.papeis:
-            yield reacao(m["id"], papel, "🎉")
+            yield reacao(m["id"], papel, festa)
         if "Cética" not in win.papeis:
-            yield reacao(m["id"], "Cética", "🤷")
+            dela = next((x for x in ranking if "Cética" in x.papeis), None)
+            yield reacao(m["id"], "Cética", "😅" if dela is not None and not math.isfinite(dela.score) else "🤷")
         return win, ranking, veredito
 
     def _veredito(self, win, props):
@@ -498,9 +605,13 @@ class Conselho:
             return "Ninguém chegou numa resposta boa."
         direta = next(p for p in props if "Direta" in p.papeis)
         quem = " e ".join(win.papeis)
+        r = random.Random(win.text)
         if win is direta:
             if len(win.papeis) > 1:
-                return f"Fiquei com a Direta: {quem} chegaram na mesma resposta."
-            return "Fiquei com a Direta: as outras propostas tinham mais problemas."
+                return r.choice(["Fiquei com a Direta: {q} chegaram na mesma resposta.", "Quando {q} concordam, nem discuto. Vai essa.",
+                                 "Unanimidade entre {q}: fechado."]).format(q=quem)
+            return r.choice(["Fiquei com a Direta: as outras propostas tinham mais problemas.", "A Direta acertou de primeira. Vai essa.",
+                             "Ouvi todo mundo, mas a primeira ideia era a melhor."])
         motivo = direta.notas[0] if direta.notas else "a proposta dela era menos provável"
-        return f"Fiquei com a {quem}: na Direta, {motivo}."
+        return r.choice(["Fiquei com a {q}: na Direta, {m}.", "Dessa vez vou de {q}. É que na Direta, {m}.",
+                         "{q} me convenceu: na proposta da Direta, {m}."]).format(q=quem, m=motivo)

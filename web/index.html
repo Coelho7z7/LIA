@@ -501,6 +501,34 @@
     .rot .rl { grid-template-columns: 1fr 1fr; }
   }
   @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+/* bastidores: o debate interno (conselho, triagem, revisora) por baixo da resposta */
+.row.pensa .msg { opacity: .62; font-style: italic; }
+/* Sala do conselho: rosto em cada mensagem e reações como no WhatsApp (clique para ver quem reagiu) */
+.thread[data-c="sala"] .row.bot { flex-direction: row; align-items: flex-end; gap: 8px; }
+.thread[data-c="sala"] .row.bot > .bl { width: 28px; height: 28px; flex: none; margin-bottom: 2px; }
+.thread[data-c="sala"] .row.bot > .bl.lia { border-radius: 8px; }
+.thread[data-c="sala"] .col { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; max-width: calc(100% - 40px); }
+.thread[data-c="sala"] .col .msg { max-width: 100%; }
+.zap { display: inline-flex; align-items: center; gap: 2px; margin-top: -6px; padding: 1px 8px; border-radius: 999px; z-index: 1;
+       background: var(--panel); border: 1px solid var(--line); box-shadow: var(--shadow); font-size: 13px; line-height: 20px;
+       cursor: pointer; animation: pop .35s var(--spring) both; position: relative; }
+.zap b { font-size: 11.5px; font-weight: 600; color: var(--muted); margin-left: 3px; }
+.row.user .zap { align-self: flex-end; margin-right: 8px; }
+.zap-pop { position: fixed; z-index: 50; min-width: 200px; max-width: 280px; background: var(--panel); border: 1px solid var(--line);
+           border-radius: 14px; box-shadow: var(--shadow); padding: 6px; animation: pop .25s var(--spring); }
+.zap-pop .t { font-size: 12px; color: var(--muted); padding: 4px 8px 6px; }
+.zap-pop .p { display: flex; align-items: center; gap: 9px; padding: 6px 8px; border-radius: 9px; font-size: 13.5px; }
+.zap-pop .p:hover { background: var(--chip); }
+.zap-pop .p .bl { width: 26px; height: 26px; flex: none; }
+.zap-pop .p span.n { flex: 1; }
+.zap-pop .p span.e { font-size: 18px; }
+details.debate { margin: 4px 0 2px 44px; font-size: 12.5px; color: var(--muted, #9a9a9a); max-width: 560px; }
+details.debate summary { cursor: pointer; list-style: none; user-select: none; opacity: .8; }
+details.debate summary::-webkit-details-marker { display: none; }
+details.debate summary::before { content: "▸ "; }
+details.debate[open] summary::before { content: "▾ "; }
+details.debate .linha { margin: 6px 0 0 4px; padding-left: 8px; border-left: 2px solid rgba(127,127,127,.35); }
+details.debate .linha b { font-weight: 600; color: var(--fg, inherit); }
 </style>
 </head>
 <body>
@@ -736,7 +764,12 @@ const agente = (id) => agentes.find((a) => a.id === id);
 const grupo = (id) => grupos.find((g) => g.id === id);
 const ehAgente = (id) => !!agente(id);
 const ehGrupo = (id) => !!grupo(id);
-function nomeDe(id) { return id === "lia" || id === "lia-equipe" ? NAME : agente(id)?.nome || grupo(id)?.nome || "?"; }
+// Sala do conselho: conversa só de leitura onde os papéis do conselho (conselho.py) mandam mensagem um pro outro,
+// respondem e reagem, a cada mensagem sua. Cada papel tem um rosto próprio.
+const SALA = "sala";
+const PAPEIS = { Direta: [205, "circulo"], Exploradora: [145, "nuvem"], "Cética": [350, "triangulo"], Copista: [45, "quadrado"],
+                 Revisora: [28, "gota"], Triagem: [188, "quadrado"] };
+function nomeDe(id) { if (id === SALA) return "Sala do conselho"; if (PAPEIS[id]) return id; return id === "lia" || id === "lia-equipe" ? NAME : agente(id)?.nome || grupo(id)?.nome || "?"; }
 function salvarListas() {
   store.set("lia-grupos", JSON.stringify(grupos)); store.set("lia-fixados", JSON.stringify(fixados));
   store.set("lia-ocultos", JSON.stringify(ocultos)); store.set("lia-naolidos", JSON.stringify([...naoLidos]));
@@ -766,6 +799,8 @@ function avatar(id, cls = "") {
   el.className = "bl " + cls;
   el.style.setProperty("--d", (-Math.random() * 5).toFixed(2) + "s");  // cada um no seu ritmo
   el.style.setProperty("--d2", (-Math.random() * 9).toFixed(2) + "s");
+  if (id === SALA) return pilha(["Direta", "Cética", "Revisora"], cls);
+  if (PAPEIS[id]) { el.innerHTML = blobSVG(...PAPEIS[id]); return el; }
   const a = agente(id);
   if (id === "lia" || id === "lia-equipe") { el.classList.add("lia"); el.innerHTML = GLYPH; }
   else if (a) el.innerHTML = blobSVG(HUES[a.cor % HUES.length], a.forma);
@@ -1137,7 +1172,7 @@ document.addEventListener("click", (e) => { if (!e.target.closest(".picker, .act
 function previa(id) {
   const el = threadDe(id);
   const ult = [...el.querySelectorAll(":scope > .row:not(.thinking), :scope > .sys")].pop();
-  const vazio = id === "lia" ? "faz de tudo um pouco" : ehGrupo(id) ? membrosDe(id).map(nomeDe).join(", ") : agente(id)?.rotulo || "diga oi";
+  const vazio = id === "lia" ? "faz de tudo um pouco" : id === SALA ? "os papéis debatem aqui" : ehGrupo(id) ? membrosDe(id).map(nomeDe).join(", ") : agente(id)?.rotulo || "diga oi";
   if (!ult) return { t: vazio, ts: 0 };
   let t = "";
   if (ult.classList.contains("handoff")) t = "↪ " + ult.querySelector(".msg-h").textContent;
@@ -1152,7 +1187,7 @@ function previa(id) {
   return { t, ts: +(ult.dataset.ts || 0) };
 }
 function ordem() {
-  const ids = ["lia", ...agentes.map((a) => a.id), ...grupos.map((g) => g.id)];
+  const ids = ["lia", SALA, ...agentes.map((a) => a.id), ...grupos.map((g) => g.id)];
   const ativ = (id) => lerThread(id).ativ || 0;
   const vis = ids.filter((id) => !ocultos.includes(id));
   return [...fixados.filter((id) => vis.includes(id)), ...vis.filter((id) => !fixados.includes(id)).sort((a, b) => ativ(b) - ativ(a))];
@@ -1201,6 +1236,7 @@ $("busca").addEventListener("input", renderRoster);
 // =====================================================================================
 function subtitulo(id) {
   if (id === "lia") return statusLia;
+  if (id === SALA) return "os papéis debatendo cada resposta (só para ver)";
   if (ehGrupo(id)) return membrosDe(id).map(nomeDe).join(", ");
   return agente(id)?.rotulo || "agente";
 }
@@ -1210,13 +1246,15 @@ function cabecalho() {
 }
 async function abrirConversa(id) {
   if (busy && id !== conversa) return snack("Espera terminar a resposta para trocar de conversa.", null);
-  if (id !== "lia" && !ehAgente(id) && !ehGrupo(id)) id = "lia";
+  if (id !== "lia" && id !== SALA && !ehAgente(id) && !ehGrupo(id)) id = "lia";
   conversa = id; naoLidos.delete(id); store.set("lia-conversa", id); salvarListas();
   for (const [k, el] of Object.entries(threads)) el.hidden = k !== id;
   log = threadDe(id); log.hidden = false;
   if (!log.querySelector(".row, .sys")) vazio(id);
   cabecalho();
-  input.placeholder = ehGrupo(id) ? `Mensagem para ${nomeDe(id)} (@ chama alguém)` : `Mensagem para ${nomeDe(id)}`;
+  input.placeholder = id === SALA ? "Aqui é só para ver: mande sua mensagem para a Lia e acompanhe o debate aqui"
+    : ehGrupo(id) ? `Mensagem para ${nomeDe(id)} (@ chama alguém)` : `Mensagem para ${nomeDe(id)}`;
+  input.readOnly = id === SALA;
   limparResposta(); fecharPop();
   renderInfo(); renderRoster(); fecharLateralSeSobreposta();
   requestAnimationFrame(() => scroll(true));
@@ -1235,7 +1273,10 @@ function vazio(id) {
   e.insertAdjacentHTML("beforeend", "<h2></h2><p></p><div class='tags'></div><div class='chips'></div>");
   e.querySelector("h2").textContent = nomeDe(id);
   let sug = [];
-  if (id === "lia") {
+  if (id === SALA) {
+    e.querySelector("p").textContent = "A cada mensagem sua, a Direta, a Exploradora, a Cética, a Copista e a Revisora conversam aqui: propõem, respondem umas às outras, reagem, e a Lia decide. (O Conselho interno precisa estar ligado nas configurações.)";
+    for (const m of Object.keys(PAPEIS)) { const t = document.createElement("span"); t.className = "tag"; t.append(avatar(m), m); e.querySelector(".tags").appendChild(t); }
+  } else if (id === "lia") {
     const h = new Date().getHours();
     e.querySelector("h2").textContent = h < 5 ? "Ainda acordado?" : h < 12 ? "Bom dia!" : h < 18 ? "Boa tarde!" : "Boa noite!";
     e.querySelector("p").textContent = "Sou a Lia: faço de tudo um pouco e cuido do que nenhum agente cuida. Pede do seu jeito.";
@@ -1630,6 +1671,79 @@ async function carregarAgentes() {
 // mandar mensagem e acompanhar a resposta
 // =====================================================================================
 let bubble = null, thinking = null, lastCard = null, lastSent = "", falante = null;
+let bastidores = [];
+let salaMsgs = {}, salaRodada = null;  // id da mensagem no debate -> {m, de, texto}; a 0 é a sua
+// reações da sala: várias por mensagem, como no WhatsApp; os dados ficam no HTML (sobrevivem a recarregar)
+function salaReagir(msg, quem, emoji) {
+  const row = msg?.closest(".row");
+  if (!row || !quem) return;
+  const lista = JSON.parse(row.dataset.reacoes || "[]").filter((r) => r.de !== quem);
+  lista.push({ de: quem, e: emoji }); row.dataset.reacoes = JSON.stringify(lista);
+  let z = row.querySelector(".zap");
+  if (!z) { z = document.createElement("span"); z.className = "zap"; (row.querySelector(".col") || row).appendChild(z); }
+  const unicos = [...new Set(lista.map((r) => r.e))].slice(0, 3);
+  z.textContent = unicos.join("");
+  if (lista.length > 1) { const b = document.createElement("b"); b.textContent = lista.length; z.appendChild(b); }
+  z.title = "Ver quem reagiu";
+  setTimeout(() => animar(row.querySelector(":scope > .bl"), POSITIVOS.has(emoji)), 0);
+}
+function fecharZap() { document.querySelector(".zap-pop")?.remove(); }
+document.addEventListener("click", (e) => {
+  const z = e.target.closest(".zap");
+  if (!z) { if (!e.target.closest(".zap-pop")) fecharZap(); return; }
+  e.stopPropagation(); fecharZap();
+  const lista = JSON.parse(z.closest(".row").dataset.reacoes || "[]");
+  const pop = document.createElement("div"); pop.className = "zap-pop";
+  pop.innerHTML = `<div class="t">${lista.length} ${lista.length === 1 ? "reação" : "reações"}</div>`;
+  for (const r of lista) {
+    const linha = document.createElement("div"); linha.className = "p";
+    const n = document.createElement("span"); n.className = "n"; n.textContent = r.de === "lia" ? NAME : nomeDe(r.de);
+    const em = document.createElement("span"); em.className = "e"; em.textContent = r.e;
+    linha.append(avatar(r.de), n, em); pop.appendChild(linha);
+  }
+  document.body.appendChild(pop);
+  const b = z.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+  pop.style.left = Math.max(8, Math.min(innerWidth - w - 8, b.left)) + "px";
+  pop.style.top = (b.top - h - 6 > 8 ? b.top - h - 6 : b.bottom + 6) + "px";
+});
+function salaEvento(ev) {
+  const sala = threadDe(SALA);
+  if (salaRodada !== lastSent) {  // rodada nova: sua mensagem abre a conversa
+    salaRodada = lastSent; salaMsgs = {};
+    sala.querySelector(".vazio")?.remove();
+    salaMsgs[0] = { m: addUser(sala, lastSent), de: "voce", texto: lastSent };
+  }
+  const dizer = (de, texto, resp, privado) => {
+    const autor = de === "Lia" ? "lia" : de;
+    const m = addBot(sala, texto, { autor, de: autor, cls: privado ? "pensa" : "" });
+    const row = m.closest(".row"), col = document.createElement("div"); col.className = "col";
+    [...row.children].filter((c) => c.matches(".msg, .rxs")).forEach((c) => col.appendChild(c));
+    row.prepend(avatar(autor)); row.insertBefore(col, row.children[1]);
+    const r = resp != null && salaMsgs[resp];
+    if (r) { const q = document.createElement("span"); q.className = "quote"; q.textContent = `${r.de === "voce" ? "Você" : nomeDe(r.de)}: ${r.texto.slice(0, 80)}`; m.prepend(q); }
+    return { m, de: autor, texto };
+  };
+  if (ev.type === "conselho" && ev.ev === "msg" && ev.privado) return;  // contas internas (chances, placar) ficam fora da sala
+  if (ev.type === "conselho" && ev.ev === "msg") salaMsgs[ev.id] = dizer(ev.de, ev.texto, ev.resp, ev.privado);
+  else if (ev.type === "conselho" && ev.ev === "reacao") salaReagir(salaMsgs[ev.msg]?.m, ev.de === "Lia" ? "lia" : ev.de, ev.emoji);
+  else if (ev.type === "revisao") dizer("Revisora", `Lia, barrei “${ev.antes}”: ${ev.motivo}. Pede outra!`);
+  else if (ev.type === "triagem") dizer("Triagem", `Esse pedido tem ${ev.partes.length} partes: ${ev.partes.map((x) => "“" + x + "”").join(", ")}. Vou passar uma de cada vez.`);
+  else return;
+  if (conversa !== SALA) naoLidos.add(SALA);
+  salvar(SALA);
+}  // falas do debate interno desta resposta; aparecem num "ver o debate" embaixo dela
+function anexarBastidores(alvo) {
+  if (!bastidores.length || !alvo) return;
+  alvo = alvo.closest?.(".row") || alvo;
+  const d = document.createElement("details"); d.className = "debate";
+  const s = document.createElement("summary"); s.textContent = `ver o debate (${bastidores.length})`; d.appendChild(s);
+  for (const [de, texto] of bastidores) {
+    const l = document.createElement("div"); l.className = "linha";
+    const b = document.createElement("b"); b.textContent = de + ": "; l.appendChild(b); l.appendChild(document.createTextNode(texto));
+    d.appendChild(l);
+  }
+  alvo.after(d); bastidores = [];
+}
 let alvoReacao = null, reagiuFinal = false, repasse = null, saudacaoPendente = null, ultimoResultado = null, voltarPara = null;
 function setBusy(b) { busy = b; atualizarBotoes(); $("havbl")?.classList.toggle("busy", b); }
 function showThinking(el, autor) {
@@ -1678,11 +1792,22 @@ function trocarFalante(de) {  // no grupo, quem fala muda no meio da resposta
 function handle(ev) {
   const autor = ehGrupo(streamDe) ? falante : streamDe;
   if (ev.type === "conselho") {
+    salaEvento(ev);
+    if (ev.ev === "msg" && !ev.privado) bastidores.push([ev.de, ev.texto]);
     if (ev.ev === "digitando" && thinking) {
       let w = thinking.querySelector(".wt");
       if (!w) { w = document.createElement("span"); w.className = "wt"; thinking.querySelector(".msg").appendChild(w); }
       w.textContent = `${nomeDe(autor || "lia")} está pensando…`;
     }
+  } else if (ev.type === "triagem") {
+    salaEvento(ev);
+    bastidores.push(["Triagem", `pedido com ${ev.partes.length} partes, uma de cada vez: ${ev.partes.map((x) => "“" + x + "”").join(", ")}`]);
+  } else if (ev.type === "revisao") {
+    salaEvento(ev);
+    bastidores.push(["Revisora", `barrei “${ev.antes}”: ${ev.motivo}. Pedi outra.`]);
+  } else if (ev.type === "resumo") {
+    clearThinking();
+    const r = addBot(log, ev.text, { autor }); anexarBastidores(r);
   } else if (ev.type === "falante") {
     trocarFalante(ev.de);
   } else if (ev.type === "handoff") {
@@ -1705,11 +1830,13 @@ function handle(ev) {
       if (colegas.length) { const msg = bubble, q = colegas[Math.floor(Math.random() * colegas.length)], g = streamDe;
                             setTimeout(() => { reagir(msg, q, ["👏", "🙌", "🔥"][Math.floor(Math.random() * 3)]); salvar(g); }, 700); }
     }
+    anexarBastidores(bubble.closest(".row") || bubble);
     bubble = null; speak(ev.text);
   } else if (ev.type === "call") {
     clearThinking(); dropRetry();
     if (bubble) { bubble.classList.remove("typing"); bubble = null; }
     lastCard = addTool(log, ev, autor);
+    anexarBastidores(lastCard);
   } else if (ev.type === "confirm") {
     addAprov(log, ev, { agente: ev.de || streamDe, quem: ev.quem || autor, card: lastCard });
   } else if (ev.type === "aprovacao") {

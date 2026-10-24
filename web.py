@@ -29,7 +29,7 @@ from urllib.parse import parse_qs, urlparse
 
 import agentes
 import tools
-from agent import Assistant
+from agent import Assistant, resumo_feitos
 from conselho import ACOES
 
 PAGE = Path(__file__).resolve().parent / "web" / "index.html"
@@ -167,12 +167,33 @@ def drive(bot, agente_id="lia", text=None, approve=None, em_grupo=False, retry=F
     if text is not None:
         if bot.pending is not None:  # mensagem nova com aprovação em aberto = negar
             bot.resolve(False)
-        bot.add_user(text)
+        # Triagem (agent.triagem): pedido composto vira partes, feitas uma de cada vez, com uma entrega no fim
+        partes = bot.triagem(text)
+        bot.fila, bot.feitos, bot.composto = partes[1:], [], len(partes) > 1
+        if bot.composto:
+            yield {"type": "triagem", "partes": partes}
+        bot.add_user(partes[0])
+    while True:
+        yield from _passos(bot, agente_id, text, eu, perfil, permitidos, em_grupo)
+        if bot.pending is not None or getattr(bot, "_parou", False):
+            return
+        if not getattr(bot, "fila", None):
+            if getattr(bot, "composto", False) and bot.feitos:
+                bot.composto = False
+                yield {"type": "resumo", "text": resumo_feitos(bot.feitos)}
+            return
+        bot.add_user(bot.fila.pop(0))
+
+
+def _passos(bot, agente_id, text, eu, perfil, permitidos, em_grupo):
+    """Uma parte do pedido: o laço do assistente até uma fala, uma aprovação ou um repasse."""
+    bot._parou = False
     for _ in range(bot.max_tool_steps):
         call = None
         for ev in bot.step():
             if ev["type"] == "call" and not bot.pode(ev["tool"]):
                 yield from repassar(bot, agente_id, ev, text if text is not None else ev["arg"])
+                bot._parou, bot.fila = True, []
                 return
             if perfil and ev["type"] == "token":
                 continue  # o agente fala de uma vez: dá para trocar o "sou um Transformer" antes de aparecer

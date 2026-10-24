@@ -19,6 +19,7 @@ confiança e o mesmo porteiro).
 
 import codecs
 import copy
+import random
 import re
 from pathlib import Path
 
@@ -26,6 +27,7 @@ import torch
 
 import tools
 from conselho import Conselho
+from revisao import MOTIVO, SEGURA, revisar_fala
 from copia import Copia, carregar_fixas
 from model import GPT, GPTConfig, apply_repetition_penalty, sample_next
 from tokenizer import BPETokenizer
@@ -49,6 +51,30 @@ RISCO = re.compile(r"\b(me matar|suicid\w*|tirar (a )?minha (propria )?vida|vont
 DELICADO = re.compile(r"\b(depress\w*|(com|muita|minha) ansiedade|crise de (choro|panico|ansiedade)|nao aguento mais|sem vontade de viver|"
                       r"me sinto um lixo|muito pra baixo|sindrome do panico)")
 ALEGRE = ("que bom", "parabens", "que demais", "merecido", "comemora", "que otimo", "aproveita", "adoro ouvir")
+
+
+# Triagem: onde um pedido composto pode ser quebrado
+DIVISOR = re.compile(r"\s*(?:,?\s*e depois\s+|,?\s*depois\s+|;\s*|,?\s+e\s+(?=\S))", re.IGNORECASE)
+FEITO = {"youtube": "busquei {a} no YouTube", "abrir_app": "abri o {a}", "abrir_site": "abri o site {a}",
+         "pesquisar": "pesquisei {a}", "lembrete": "criei o lembrete", "anotar": "anotei {a}", "clima": "vi o clima",
+         "hora": "vi a hora", "data": "vi a data", "calcular": "fiz a conta", "bloquear": "bloqueei a tela",
+         "abrir_pasta": "abri a pasta {a}", "consultar": "consultei {a} na Wikipédia", "lembrar": "guardei na memória",
+         "recordar": "consultei a memória", "ver_notas": "li suas notas", "midia": "mexi na música"}
+VOLUME = {"mais": "aumentei o volume", "menos": "abaixei o volume", "mudo": "mexi no mudo"}
+
+
+def resumo_feitos(feitos):
+    """Entrega única de um pedido composto: "Pronto: busquei forró no YouTube e abaixei o volume."."""
+    ok = [VOLUME.get(a, "mexi no volume") if n == "volume" else FEITO.get(n, n).format(a=a)
+          for n, a, r in feitos if r.startswith("ok")]
+    falhou = [FEITO.get(n, n).format(a=a) for n, a, r in feitos if not r.startswith("ok")]
+    junta = lambda xs: ", ".join(xs[:-1]) + " e " + xs[-1] if len(xs) > 1 else xs[0]  # noqa: E731
+    if not ok:
+        return "Não consegui fazer nenhuma das partes, foi mal."
+    txt = "Pronto: " + junta(ok) + "."
+    if falhou:
+        txt += " Só não deu: " + junta(falhou) + "."
+    return txt
 
 
 def apoio_se_preciso(fala, resposta):
@@ -104,6 +130,7 @@ class Assistant:
         self.cache = self.model.new_cache()
         self.cache_ids = []
         self.pending = None  # chamada esperando confirmação: (nome, argumento)
+        self.fila, self.feitos = [], []  # pedido composto: partes que faltam e o que já foi feito (triagem)
 
     def add_user(self, text):
         ids, _ = self.tok.encode_turn("user", text)
@@ -169,6 +196,12 @@ class Assistant:
                 yield from self._call(win.ids)
                 return
             text, ids = win.text, [tok.assistant] + win.ids + [tok.end]
+            problema = revisar_fala(self.turns[-1][1], text)
+            if problema:  # a revisora da conversa barra: vale a próxima proposta de texto que passar, ou a segura
+                yield {"type": "revisao", "motivo": MOTIVO[problema], "antes": text}
+                outra = next((x for x in props if x.kind == "text" and not revisar_fala(self.turns[-1][1], x.text)), None)
+                text = outra.text if outra else random.choice(SEGURA[problema])
+                ids = [tok.assistant] + outra.ids + [tok.end] if outra else tok.encode_turn("assistant", text)[0]
             seguro = apoio_se_preciso(self.turns[-1][1], text)
             if seguro:
                 text, ids = seguro, tok.encode_turn("assistant", seguro)[0]
@@ -244,7 +277,10 @@ class Assistant:
             if tail and mostra and not tentativa:
                 yield {"type": "token", "text": tail}
             text = tok.decode(gen).strip()
-            if must or tools.norm(text) not in recentes or tentativa == 2:
+            problema = revisar_fala(self.turns[-1][1], text) if depois_do_usuario and not must else None
+            if problema:
+                yield {"type": "revisao", "motivo": MOTIVO[problema], "antes": text}
+            if must or (tools.norm(text) not in recentes and not problema) or tentativa == 2:
                 break
             # repetiu: volta o cache para o fim do prompt e sorteia de novo
             proibidas.append(gen[0])
@@ -263,6 +299,11 @@ class Assistant:
             if not mostra:
                 yield {"type": "token", "text": text}
         fala = next((t for r, t, _ in reversed(self.turns) if r == "user"), "")
+        if depois_do_usuario and not must and revisar_fala(fala, text):  # 3 sorteios e o tom continua errado
+            text = random.choice(SEGURA[revisar_fala(fala, text)])
+            ids, _ = tok.encode_turn("assistant", text)
+            self.cache.pos = start
+            self.cache_ids = self.cache_ids[:start]
         seguro = apoio_se_preciso(fala, text)
         if seguro:  # o "text" do fim troca o que apareceu na tela
             text = seguro
@@ -340,14 +381,48 @@ class Assistant:
         result = tools.run(name, arg) if approved else "cancelado: você não autorizou"
         ids, _ = self.tok.encode_turn("result", result)
         self.turns.append(("result", result, ids))
+        self.feitos.append((name, arg, result))
         return result
+
+    # ------------------------------------------------------------ triagem
+    def _p_call_sozinha(self, parte):
+        """p(<|call|>) se `parte` fosse a próxima fala do usuário (sem mexer no cache nem no histórico)."""
+        ids = self._context() + self.tok.encode_turn("user", parte)[0] + [self.tok.assistant]
+        ids = ids[-(self.model.cfg.block_size - 1):]
+        with torch.no_grad():
+            logits, _ = self.model(torch.tensor([ids], device=self.device))
+        return torch.softmax(logits[0, -1].float(), -1)[self.tok.call].item()
+
+    def triagem(self, text):
+        """
+        Pedido composto ("toca um forró e abaixa o volume") -> partes, uma ferramenta cada; senão [text].
+        Só quebra se CADA parte sozinha passar da trava de confiança: "anota arroz, feijão e óleo" não vira três
+        pedidos ("óleo" sozinho não é pedido).
+        """
+        partes = [x.strip(" ,.") for x in DIVISOR.split(text) if x.strip(" ,.")]
+        if not 2 <= len(partes) <= 3 or any(len(x.split()) < 2 for x in partes):
+            return [text]
+        if all(self._p_call_sozinha(x) >= TRAVA for x in partes):
+            return partes
+        return [text]
 
     def chat(self, text, confirm=lambda name, arg: True, auto=False):
         """
         Laço completo de uma mensagem do usuário, já executando ferramentas.
         `confirm(nome, arg) -> bool` é chamado para ferramentas sensíveis (a menos que auto=True).
-        Gera os mesmos eventos de step() mais {"type": "result", "tool", "text"}.
+        Gera os mesmos eventos de step() mais {"type": "result", "tool", "text"}; pedido composto também gera
+        {"type": "triagem", "partes"} no começo e {"type": "resumo", "text"} no fim.
         """
+        partes = self.triagem(text)
+        if len(partes) > 1:
+            yield {"type": "triagem", "partes": partes}
+        self.feitos = []
+        for parte in partes:
+            yield from self._uma(parte, confirm, auto)
+        if len(partes) > 1 and self.feitos:
+            yield {"type": "resumo", "text": resumo_feitos(self.feitos)}
+
+    def _uma(self, text, confirm, auto):
         self.add_user(text)
         for _ in range(self.max_tool_steps):
             call = None

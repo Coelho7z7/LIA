@@ -39,3 +39,6 @@ webapp/test/ferramentas.json
 .wrangler/
 testes/resultados/
 data_wiki/
+
+# Legendas do OpenSubtitles (baixadas; legendas_pretreino.py recria a amostra limpa)
+data_legendas/

@@ -196,6 +196,8 @@ class BPETokenizer:
         kw = {"dropout": dropout, "rng": rng, "seg": {}} if dropout else {}
         for m in messages:
             i, k = self.encode_turn(m["role"], m["content"], **kw)
+            if m.get("aprender") is False:  # fala só de contexto (ex.: a resposta errada que a pessoa vai corrigir)
+                k = [0] * len(k)
             ids += i
             mask += k
         return ids, mask
