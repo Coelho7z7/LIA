@@ -4768,6 +4768,131 @@ for _f in (ex_oi27, ex_conserto):
     setattr(Gen, _f.__name__, _sem_bateria(_f))
 
 
+# =================================================================== RODADA 28 (só treino)
+# O tom continua na fala seguinte. Na conversa real: "tomei um fora da crush" / "ela disse que só me vê como amigo" ->
+# "Parabéns! Isso merece comemoração." (a segunda frase sozinha parece neutra). Cada assunto tem a notícia, a primeira
+# resposta, detalhes NEUTROS na forma e respostas que continuam no mesmo tom; às vezes a pessoa pede conselho ou vira o
+# assunto ("mas já tô de boa") e aí ela acompanha.
+R28 = [  # (tom, notícias, primeiras respostas, [(detalhe, respostas só dele)], respostas que servem a qualquer detalhe, conselhos)
+    ("ruim", ["tomei um fora da crush", "levei um fora dela", "a menina que eu gosto me deu um fora",
+              "me declarei pra ela e levei um fora"],
+     ["Ai, que dor... Sinto muito. Quer contar como foi?", "Poxa, fora dói mesmo. O que ela disse?",
+      "Ah não... Isso pesa. Tô aqui, me conta."],
+     [("ela disse que só me vê como amigo", ["Ai, essa dói. Mas ela foi sincera, e isso é melhor do que te enrolar."]),
+      ("disse que não quer namorar agora", ["Poxa... Às vezes não é sobre você, é o momento dela. Mas dói igual."]),
+      ("falou que gosta de outra pessoa", ["Ai... essa é difícil de ouvir. Sinto muito mesmo."]),
+      ("ela riu e mudou de assunto", ["Poxa, que situação chata. Você não merecia essa reação."])],
+     ["Poxa... ouvir isso é duro. Não diz nada sobre o quanto você vale, tá?",
+      "Que chato. Dá um tempo pra você, sem pressa. Quer desabafar mais?"],
+     ["Dá um tempo pra sentir, sem se cobrar. E se afasta um pouco das redes dela, ajuda.",
+      "Cuida de você primeiro: sai com amigos, faz algo que você curte. Passa, prometo."]),
+    ("ruim", ["o cara que eu gosto me deu um fora", "levei um fora dele", "me declarei pra ele e levei um fora"],
+     ["Ai, que dor... Sinto muito. Quer contar como foi?", "Poxa, fora dói mesmo. O que ele disse?"],
+     [("ele disse que me vê só como amiga", ["Ai, essa dói. Mas ele foi sincero, e isso é melhor do que te enrolar."]),
+      ("disse que não quer nada sério", ["Poxa... Pelo menos foi claro. Mas dói igual, né?"]),
+      ("falou que tá saindo com outra", ["Ai... essa é difícil de ouvir. Sinto muito mesmo."]),
+      ("ele visualizou e não respondeu mais", ["Que falta de consideração... Você merece alguém que responda."])],
+     ["Poxa... ouvir isso é duro. Não diz nada sobre o quanto você vale, tá?",
+      "Que chato. Dá um tempo pra você, sem pressa. Quer desabafar mais?"],
+     ["Dá um tempo pra sentir, sem se cobrar. E se afasta um pouco das redes dele, ajuda.",
+      "Cuida de você primeiro: sai com as amigas, faz algo que você curte. Passa, prometo."]),
+    ("ruim", ["fui demitido hoje", "me mandaram embora do trampo", "perdi o emprego", "me demitiram do estágio"],
+     ["Poxa, sinto muito. Isso pega de surpresa. Como você tá?", "Ah não... Que notícia difícil. Quer conversar?"],
+     [("disseram que foi corte de custo", ["Então não foi sobre você. Mesmo assim, que situação difícil."]),
+      ("trabalhei lá quatro anos", ["Poxa, depois de tanto tempo dedicado, imagino a frustração."]),
+      ("foi por mensagem no celular", ["Por mensagem? Que falta de consideração... Você não merecia isso."]),
+      ("meu chefe nem olhou na minha cara", ["Que falta de respeito... Sinto muito mesmo."])],
+     ["Que situação chata. Não é culpa sua, viu?", "Imagino como você tá. Respira, um dia de cada vez."],
+     ["Respira hoje. Amanhã, com calma, atualiza o currículo e avisa os conhecidos que tá procurando.",
+      "Vê os seus direitos da rescisão e tira uns dias pra se recompor. Depois a busca rende mais."]),
+    ("ruim", ["meu cachorro morreu", "perdi meu cachorro hoje", "meu gato morreu"],
+     ["Sinto muito... Perder um bichinho dói demais.", "Poxa, que tristeza. Quer me contar dele?"],
+     [("ele tinha catorze anos", ["Uma vida inteira juntos... Ele teve muita sorte de ter você."]),
+      ("tava comigo desde que eu era criança", ["Cresceram juntos... Essa saudade é amor, sabe?"]),
+      ("a casa ficou vazia", ["Imagino o vazio. Os cantos dele lembram tudo, né?"]),
+      ("foi de repente", ["De repente é ainda mais difícil... Sinto muito."])],
+     ["Sinto muito mesmo. Cuida de você nesses dias.", "Que tristeza... Tô aqui se quiser falar dele."],
+     ["Guarda umas fotos, conta as histórias dele pra alguém. Ajuda a doer menos.",
+      "Não tem jeito certo de passar por isso. Vai no seu tempo."]),
+    ("ruim", ["reprovei na prova de cálculo", "reprovei no vestibular", "tomei bomba em física", "fiquei de recuperação"],
+     ["Poxa, que frustrante. Sinto muito.", "Ah não... Quer contar o que aconteceu?"],
+     [("estudei a semana toda", ["Que raiva, estudar tanto e não dar. Mas o esforço não se perde, viu?"]),
+      ("faltou meio ponto", ["Meio ponto dói mais ainda... Força, na próxima você chega."]),
+      ("vou ter que fazer de novo", ["Chato ter que refazer... Mas agora você já conhece a prova."]),
+      ("todo mundo da sala passou", ["Isso deixa pior, né? Mas cada um tem seu tempo, de verdade."])],
+     ["Poxa, chato demais. Mas uma prova não define você.", "Que frustração... Respira, dá pra virar isso."],
+     ["Vê onde errou na prova, foca nisso e tenta de novo. Você já sabe o caminho.",
+      "Descansa hoje. Amanhã monta um plano curto de estudo."]),
+    ("ruim", ["briguei com minha mãe", "briguei feio com meu melhor amigo", "briguei com minha namorada"],
+     ["Poxa, briga com quem a gente gosta pesa. O que rolou?", "Ah, que chato. Quer contar?"],
+     [("foi por causa de uma bobeira", ["Às vezes uma bobeira vira bola de neve, né? Que chato."]),
+      ("rolou umas coisas pesadas", ["Palavra pesada machuca mesmo... Imagino como você ficou."]),
+      ("a gente não se fala desde ontem", ["Ficar sem falar com quem a gente gosta é ruim demais."]),
+      ("começou por causa do celular", ["Coisa pequena que vira briga grande... Que chato."])],
+     ["Que chato... Como você tá?", "Poxa, briga deixa a gente mal o dia todo."],
+     ["Espera a cabeça esfriar e puxa conversa com calma. Começar pedindo desculpa pela sua parte ajuda.",
+      "Quando os dois estiverem mais calmos, conversa com sinceridade. Briga não apaga o carinho."]),
+    ("ruim", ["bati o carro", "meu celular quebrou", "roubaram minha bicicleta", "perdi minha carteira"],
+     ["Ah não! Você tá bem?", "Poxa, que azar... Tá tudo bem com você?"],
+     [("foi bem na frente de casa", ["Logo ali, que azar... Pelo menos você tá bem."]),
+      ("nem tinha seguro", ["Que raiva, e ainda sem seguro... Sinto muito."]),
+      ("acabei de comprar", ["Novinho ainda? Que raiva, sinto muito."]),
+      ("tinha todos os meus documentos", ["Ih, documento dá trabalho... Que chato mesmo."])],
+     ["Poxa, logo agora. Que chato mesmo.", "Que situação. O importante é que você tá bem."],
+     ["Faz um boletim de ocorrência e vê o que dá pra recuperar. Um passo de cada vez.",
+      "Respira. Amanhã resolve com calma, hoje já foi pesado."]),
+    ("bom", ["passei no vestibular", "passei na prova de cálculo", "passei na auto escola", "fui aprovado no concurso"],
+     ["Aí sim! Parabéns! Como você tá se sentindo?", "Que notícia boa! Me conta tudo!"],
+     [("estudei o ano inteiro", ["Todo esse esforço valeu! Que orgulho."]),
+      ("minha mãe chorou", ["Que lindo! Ela deve tá muito orgulhosa, e com razão."]),
+      ("foi por pouco", ["Por pouco ou não, passou! Isso que importa."]),
+      ("nem acreditei na hora", ["Pode acreditar, foi você que conquistou!"])],
+     ["Merecido demais! Comemora muito.", "Que bom! Fico muito feliz por você."],
+     ["Comemora hoje! Depois vê os próximos passos com calma.", "Aproveita o momento. Você merece um descanso."]),
+    ("bom", ["consegui o emprego", "fui promovido", "passei na entrevista", "fui contratado"],
+     ["Parabéns! Que notícia boa!", "Aí sim! Conta mais!"],
+     [("começo segunda", ["Que demais! Começo novo, energia nova."]),
+      ("vou ganhar bem mais", ["Aí sim! Merecido, viu?"]),
+      ("era a vaga que eu queria", ["Que bom, a vaga dos sonhos! Fico muito feliz."]),
+      ("vai ser trabalho remoto", ["Melhor ainda! Sem trânsito, que maravilha."])],
+     ["Merecido! Agora é curtir essa conquista.", "Que bom! Fico muito feliz por você."],
+     ["Chega cedo no primeiro dia e pergunta bastante. O resto vem.",
+      "Comemora, e descansa no fim de semana pra começar bem."]),
+    ("bom", ["ela aceitou namorar comigo", "pedi ela em namoro e ela aceitou", "ele me pediu em namoro",
+             "a gente começou a namorar"],
+     ["Que lindo! Parabéns!", "Aí sim! Que notícia boa!"],
+     [("foi no parque", ["Que fofo! Lugar bonito pra lembrar sempre."]),
+      ("a gente se conhece desde a escola", ["Que história bonita! Fico feliz demais."]),
+      ("foi bem do nada", ["Os melhores momentos são assim, né? Que lindo."]),
+      ("eu tava nervoso demais", ["Nervoso faz parte, e deu tudo certo!"])],
+     ["Felicidades pros dois!", "Que bom! Fico muito feliz por vocês."],
+     ["Curte essa fase sem pressa. Ela é muito boa.", "Aproveita e marca alguma coisa especial pra comemorar."]),
+]
+R28_VIROU = {"ruim": (["mas já tô de boa", "mas já superei", "mas tô bem, sério", "mas já passou"],
+                      ["Que bom ouvir isso! Se precisar, tô aqui.", "Ainda bem! Fico feliz que você tá melhor."]),
+             "bom": (["mas tô meio nervoso", "mas bateu um medo agora"],
+                     ["Normal ficar nervoso com coisa nova! Vai dar tudo certo.", "Faz parte! Medo é sinal de que importa."])}
+R28_PEDE = ["o que eu faço?", "e agora?", "o que você acha?", "o que você faria?"]
+
+
+def ex_tom28(self):
+    rng = self.rng
+    tom, noticias, r1, detalhes, gerais, conselhos = rng.choice(R28)
+    msgs = [U(self.user(rng.choice(noticias))[0]), A(rng.choice(r1))]
+    for d, proprias in rng.sample(detalhes, 1 + (rng.random() < 0.3)):  # às vezes dois detalhes seguidos
+        msgs += [U(self.user(d)[0]), A(rng.choice(proprias if rng.random() < 0.6 else gerais))]
+    x = rng.random()
+    if x < 0.35:
+        msgs += [U(self.user(rng.choice(R28_PEDE))[0]), A(rng.choice(conselhos))]
+    elif x < 0.55:
+        fs, rs = R28_VIROU[tom]
+        msgs += [U(self.user(rng.choice(fs))[0]), A(rng.choice(rs))]
+    return msgs
+
+
+Gen.ex_tom28 = _sem_bateria(ex_tom28)
+
+
 TRAIN_KINDS = {"opiniao": 4, "lembra_disso": 1.5, "eu_sou": 2,  # só treino (rodadas 8 e 10)
                # rodada 11: conversa do dia a dia e fronteira pedido x conversa (~40% da mistura)
                "papo": 30, "desabafo": 6, "pares": 22, "nao_sei": 9, "capacidade": 4, "ia_info": 3, "dilema": 3,
@@ -4795,7 +4920,7 @@ TRAIN_KINDS = {"opiniao": 4, "lembra_disso": 1.5, "eu_sou": 2,  # só treino (ro
                "nota22": 1.5, "nome22": 2, "expr22": 2, "dia_longo": 1, "curtos22": 2.5, "ela22": 0.7,
                "gatilho": 6, "par24": 3, "corrige_conta": 1, "qual_materia": 1,
                "recusa": 1.5, "tom26": 3, "sufixo": 3, "curta26": 2,
-               "oi27": 3, "conserto": 2}  # rodada 27: saudação com "tudo bom?" e conserto de conversa  # rodada 26 (teste de estresse)  # rodada 23: família larga de falas com palavra de ferramenta sem pedido
+               "oi27": 3, "conserto": 2, "tom28": 3}  # rodada 27: saudação com "tudo bom?" e conserto de conversa  # rodada 26 (teste de estresse)  # rodada 23: família larga de falas com palavra de ferramenta sem pedido
 # Rodada 10: um pouco mais de peso nos tipos que o v9 errou (só no treino; o eval não usa pesos)
 REFORCO = {"remember": 1.5, "app": 1.2, "search": 1.3, "youtube": 1.3, "remind": 1.3,
            "recall": 1.4, "volume": 1.3, "sobre_mim": 1.3, "fix_name": 1.3}  # rodada 13: o v12 perdeu "o que você lembra de mim?" e "desmuta"

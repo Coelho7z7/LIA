@@ -95,8 +95,12 @@ def main():
     if init_path == "none":
         init_path = None
     start_iter, best_val, ckpt = 0, float("inf"), None
+    retomar_path = out / f"retomar_{ckpt_path.name}"
     if args.resume:
-        ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
+        de = retomar_path if retomar_path.exists() and retomar_path.stat().st_mtime > ckpt_path.stat().st_mtime \
+            else ckpt_path
+        ckpt = torch.load(de, map_location=device, weights_only=False)
+        print(f"Retomando de {de}")
         cfg = GPTConfig(**ckpt["config"])
     elif init_path:
         ckpt = torch.load(init_path, map_location=device, weights_only=False)
@@ -203,12 +207,12 @@ def main():
             p.copy_(e)
             e.copy_(tmp)
 
-    def save(it):
+    def save(it, path=ckpt_path):
         # com EMA, é chamado com a média no modelo (e os pesos crus guardados em `ema`)
         extra = {"raw_params": [e.detach().clone() for e in ema], "ema": args.ema} if ema is not None else {}
         torch.save({"model": model.state_dict(), "optimizer": opt.state_dict(), "config": asdict(cfg),
                     "tokenizer": tok.to_dict(), "stage": args.stage, "iter": it, "best_val": best_val,
-                    "args": vars(args), **extra}, ckpt_path)
+                    "args": vars(args), **extra}, path)
 
     log_path = out / f"log_{args.stage}.csv"
     if not args.resume or not log_path.exists():
@@ -239,6 +243,8 @@ def main():
                 elif last and args.save_last:
                     save(it)
                     print(f"  checkpoint do fim salvo em {ckpt_path} (val não melhorou)")
+                elif args.save_last:  # ponto de retomada: parar no meio não volta ao último "melhor"
+                    save(it, retomar_path)
                 show_samples()
                 print()
                 t_last, steps_since = time.time(), 0

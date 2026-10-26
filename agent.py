@@ -183,6 +183,9 @@ class Assistant:
         logits = self._prefill(prompt)
         depois_do_usuario = bool(self.turns) and self.turns[-1][0] == "user"
         p = self.porteiro.p_ferramenta(prompt) if self.porteiro and depois_do_usuario else None
+        # fala anterior da pessoa: o tom de uma notícia continua na fala seguinte (revisao.revisar_fala)
+        falas = [t for r, t, _ in self.turns if r == "user"]
+        antes = falas[-2] if len(falas) > 1 else ""
 
         if self.usar_conselho and depois_do_usuario:
             # O conselho só lê o cache (já com o prompt); a fala escolhida entra no histórico e o próximo
@@ -190,16 +193,17 @@ class Assistant:
             forcar = "call" if p is not None and p >= PORTEIRO_SIM else "text" if p is not None and p <= PORTEIRO_NAO else None
             self.conselho.temperature = self.temperature
             win, props, veredito = yield from self.conselho.rodada(self.cache, logits, self.turns[-1][1],
-                                                                   trava=TRAVA, forcar=forcar)
+                                                                   trava=TRAVA, forcar=forcar, antes=antes)
             yield {"type": "debate", "propostas": [x.resumo() for x in props], "veredito": veredito}
             if win.kind == "call":
                 yield from self._call(win.ids)
                 return
             text, ids = win.text, [tok.assistant] + win.ids + [tok.end]
-            problema = revisar_fala(self.turns[-1][1], text)
+            problema = revisar_fala(self.turns[-1][1], text, antes)
             if problema:  # a revisora da conversa barra: vale a próxima proposta de texto que passar, ou a segura
                 yield {"type": "revisao", "motivo": MOTIVO[problema], "antes": text}
-                outra = next((x for x in props if x.kind == "text" and not revisar_fala(self.turns[-1][1], x.text)), None)
+                outra = next((x for x in props if x.kind == "text" and not revisar_fala(self.turns[-1][1], x.text, antes)),
+                             None)
                 text = outra.text if outra else random.choice(SEGURA[problema])
                 ids = [tok.assistant] + outra.ids + [tok.end] if outra else tok.encode_turn("assistant", text)[0]
             seguro = apoio_se_preciso(self.turns[-1][1], text)
@@ -277,7 +281,7 @@ class Assistant:
             if tail and mostra and not tentativa:
                 yield {"type": "token", "text": tail}
             text = tok.decode(gen).strip()
-            problema = revisar_fala(self.turns[-1][1], text) if depois_do_usuario and not must else None
+            problema = revisar_fala(self.turns[-1][1], text, antes) if depois_do_usuario and not must else None
             if problema:
                 yield {"type": "revisao", "motivo": MOTIVO[problema], "antes": text}
             if must or (tools.norm(text) not in recentes and not problema) or tentativa == 2:
@@ -299,8 +303,8 @@ class Assistant:
             if not mostra:
                 yield {"type": "token", "text": text}
         fala = next((t for r, t, _ in reversed(self.turns) if r == "user"), "")
-        if depois_do_usuario and not must and revisar_fala(fala, text):  # 3 sorteios e o tom continua errado
-            text = random.choice(SEGURA[revisar_fala(fala, text)])
+        if depois_do_usuario and not must and revisar_fala(fala, text, antes):  # 3 sorteios e o tom continua errado
+            text = random.choice(SEGURA[revisar_fala(fala, text, antes)])
             ids, _ = tok.encode_turn("assistant", text)
             self.cache.pos = start
             self.cache_ids = self.cache_ids[:start]

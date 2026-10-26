@@ -401,7 +401,7 @@ class Conselho:
                 return fim.value
 
     @torch.no_grad()
-    def rodada(self, cache, logits, user_text, trava=None, forcar=None):
+    def rodada(self, cache, logits, user_text, trava=None, forcar=None, antes=""):
         """
         O debate inteiro. `cache` já contém o prompt (até <|assistant|>) e `logits` são do último
         token; nenhum dos dois é alterado. É um gerador de eventos para a interface, que saem na
@@ -491,11 +491,11 @@ class Conselho:
         # dúvida real entre conversar e usar ferramenta (>= 5% pro outro lado), defende o outro caminho; senão concorda.
         yield digitando("Cética")
         chance = (1 - p_call) if direta_call else p_call
-        problema = None if direta_call else revisar_fala(user_text, prop_direta.text)
+        problema = None if direta_call else revisar_fala(user_text, prop_direta.text, antes)
         if problema:
             for _ in range(3):
                 ids = self._text(cache, text_logits, max(self.temperature, 0.9))
-                if not revisar_fala(user_text, tok.decode(ids).strip()):
+                if not revisar_fala(user_text, tok.decode(ids).strip(), antes):
                     break
             p, _ = add("text", ids, "Cética")
             yield reacao(direta, "Cética", "🙅")
@@ -550,7 +550,7 @@ class Conselho:
         checklist = []
         for p in ordem:
             self.revisar(p, user_text)
-            tom = revisar_fala(user_text, p.text) if p.kind == "text" else None
+            tom = revisar_fala(user_text, p.text, antes) if p.kind == "text" else None
             if tom:  # resposta no tom errado (revisao.py) não pode ganhar
                 p.ajuste, p.notas = float("-inf"), p.notas + [MOTIVO[tom]]
             # a trava de confiança e o porteiro valem também aqui
