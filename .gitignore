@@ -42,3 +42,6 @@ data_wiki/
 
 # Legendas do OpenSubtitles (baixadas; legendas_pretreino.py recria a amostra limpa)
 data_legendas/
+
+# Professor (llama.cpp e modelo aberto que escreve conversas de treino; baixados)
+professor/
