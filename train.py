@@ -99,11 +99,11 @@ def main():
     if args.resume:
         de = retomar_path if retomar_path.exists() and retomar_path.stat().st_mtime > ckpt_path.stat().st_mtime \
             else ckpt_path
-        ckpt = torch.load(de, map_location=device, weights_only=False)
+        ckpt = torch.load(de, map_location=device, weights_only=True)
         print(f"Retomando de {de}")
         cfg = GPTConfig(**ckpt["config"])
     elif init_path:
-        ckpt = torch.load(init_path, map_location=device, weights_only=False)
+        ckpt = torch.load(init_path, map_location=device, weights_only=True)
         cfg = GPTConfig(**ckpt["config"])
         if cfg.vocab_size != tok.vocab_size:
             raise SystemExit(f"{init_path} usa vocab {cfg.vocab_size}, mas o tokenizador tem {tok.vocab_size}. "

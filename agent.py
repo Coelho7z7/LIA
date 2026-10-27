@@ -99,7 +99,7 @@ class Assistant:
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         if not Path(ckpt_path).exists():
             raise FileNotFoundError(f"{ckpt_path} não existe. Treine primeiro: python train.py --stage sft")
-        ckpt = torch.load(ckpt_path, map_location=self.device, weights_only=False)
+        ckpt = torch.load(ckpt_path, map_location=self.device, weights_only=True)
         self.tok = BPETokenizer.from_dict(ckpt["tokenizer"])
         self.model = GPT(GPTConfig(**ckpt["config"])).to(self.device).eval()
         self.model.load_state_dict(ckpt["model"])

@@ -42,7 +42,7 @@ def main():
     ap.add_argument("--dtype", choices=["f16", "i8"], default="f16")
     args = ap.parse_args()
 
-    ck = torch.load(args.ckpt, map_location="cpu", weights_only=False)
+    ck = torch.load(args.ckpt, map_location="cpu", weights_only=True)
     sd, cfg = ck["model"], ck["config"]
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)

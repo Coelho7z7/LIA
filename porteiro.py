@@ -87,7 +87,7 @@ def perda(model, x, y, tok, dev):
 
 def cmd_treinar(a):
     out = Path(a.out)
-    d = torch.load(out / "exemplos.pt", weights_only=False)
+    d = torch.load(out / "exemplos.pt", weights_only=True)
     tok = BPETokenizer.from_dict(d["tokenizer"])
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     torch.manual_seed(a.seed)
@@ -121,7 +121,7 @@ class Porteiro:
     """Uso no agente: p = porteiro.p_ferramenta(contexto_ids_terminando_em_assistant)."""
 
     def __init__(self, path, device="cpu"):
-        ck = torch.load(path, map_location=device, weights_only=False)
+        ck = torch.load(path, map_location=device, weights_only=True)
         self.tok = BPETokenizer.from_dict(ck["tokenizer"])
         self.model = GPT(GPTConfig(**ck["config"])).to(device).eval()
         self.model.load_state_dict(ck["model"])

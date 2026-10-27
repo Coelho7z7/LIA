@@ -98,7 +98,7 @@ def main():
     args = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
 
-    ckpt = torch.load(args.ckpt, map_location="cpu", weights_only=False)
+    ckpt = torch.load(args.ckpt, map_location="cpu", weights_only=True)
     tok = BPETokenizer.from_dict(ckpt["tokenizer"])
     model = GPT(GPTConfig(**ckpt["config"])).eval()
     model.load_state_dict(ckpt["model"])

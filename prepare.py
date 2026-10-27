@@ -76,7 +76,7 @@ def main():
     if args.tokenizer:
         if args.tokenizer.endswith(".pt"):
             import torch
-            tok = BPETokenizer.from_dict(torch.load(args.tokenizer, map_location="cpu", weights_only=False)["tokenizer"])
+            tok = BPETokenizer.from_dict(torch.load(args.tokenizer, map_location="cpu", weights_only=True)["tokenizer"])
         else:
             tok = BPETokenizer.load(args.tokenizer)
         print(f"Tokenizador pronto: {args.tokenizer}")

@@ -33,7 +33,7 @@ def main():
     if args.seed is not None:
         torch.manual_seed(args.seed)
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    ckpt = torch.load(args.ckpt, map_location=device, weights_only=False)
+    ckpt = torch.load(args.ckpt, map_location=device, weights_only=True)
     tok = BPETokenizer.from_dict(ckpt["tokenizer"])
     model = GPT(GPTConfig(**ckpt["config"])).to(device).eval()
     model.load_state_dict(ckpt["model"])
