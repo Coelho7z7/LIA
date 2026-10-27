@@ -922,7 +922,7 @@ _WMO = {0: "céu limpo", 1: "quase limpo", 2: "parcialmente nublado", 3: "nublad
 
 
 def _get_json(url):
-    req = urllib.request.Request(url, headers={"User-Agent": "mini-gpt-assistente"})
+    req = urllib.request.Request(url, headers={"User-Agent": "lia-assistente"})
     with urllib.request.urlopen(req, timeout=8) as r:
         return json.loads(r.read().decode("utf-8"))
 

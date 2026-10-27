@@ -72,7 +72,7 @@ def main():
     tools.APPS.load()
     tools.REMINDER_LISTENERS.append(lambda t: print(f"\n{YELLOW}{BOLD}⏰ Lembrete: {t}{RESET}\n> ", end="", flush=True))
     i = bot.info
-    print(f"{BOLD}mini-GPT{RESET} {DIM}· {i['params'] / 1e6:.1f}M parâmetros · treino {i['iter']} passos · "
+    print(f"{BOLD}LIA{RESET} {DIM}· {i['params'] / 1e6:.1f}M parâmetros · treino {i['iter']} passos · "
           f"{len(tools.APPS.apps or [])} apps encontrados{RESET}")
     print(f"{DIM}Confirmação antes de abrir coisas: {'desligada' if args.auto else 'ligada'}. "
           f"Conselho: {'ligado' if bot.usar_conselho else 'desligado'}. /ajuda para comandos.{RESET}\n")

@@ -1,4 +1,4 @@
-# mini-GPT: uma IA pessoal feita do zero
+# LIA: uma IA pessoal feita do zero
 
 Uma assistente que conversa no tom de um amigo esperto e **faz coisas no seu PC**:
 abre apps, sites e pastas, pesquisa, calcula, cria lembretes, anota, controla volume e
@@ -28,7 +28,7 @@ Em outro computador: `python -m venv .venv`, `pip install -r requirements.txt` e
 modelo pronto (não precisa treinar):
 
 ```powershell
-gh release download treino-v7 --repo Coelho7z7/mini-gpt --dir out
+gh release download treino-v7 --repo Coelho7z7/LIA --dir out
 ```
 
 ## O que ela sabe fazer
@@ -276,3 +276,7 @@ O que mais fez diferença:
 - `train` caindo e `val` subindo = está decorando. Pare, use mais dados ou aumente
   o `--dropout`.
 - `out/log_sft.csv` guarda as perdas para você plotar.
+
+## Licença
+
+Código sob a [licença MIT](LICENSE).
